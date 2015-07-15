@@ -10,21 +10,25 @@
 int main(int argc, char *argv[]) {
   int i;
 
-  char diag_file_name[256];
+  char file_name[256];
 
   MPI_Init(&argc, &argv);
 
   init();
 
   for(i  = 0; i < 10000; i++) {
+    if(i%10 == 0) {
+      sprintf(file_name,"out/restart_%1.1lf.bin",time);
+      state_write(file_name);
+    }
     time_step();
-    sprintf(diag_file_name,"ke_profile_%1.5lf.dat",time);
-    diag_write(diag_file_name);
+    sprintf(file_name,"out/ke_profile_%1.1lf.dat",time);
+    diag_write(file_name);
   }
-  sprintf(diag_file_name,"ke_profile_%1.5lf.dat",time);
-  diag_write(diag_file_name);
-
-  state_write("outfile.bin");
+  sprintf(file_name,"out/ke_profile_%1.1lf.dat",time);
+  diag_write(file_name);
+  sprintf(file_name,"out/restart_%1.1lf.bin",time);
+  state_write(file_name);
 
   finalize();
 

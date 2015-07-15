@@ -16,7 +16,7 @@ int init() {
   grid_init(GRID_LAYOUT_3D_PPP);
 
   // initialize state
-  state_init(4);
+  state_init(3);
 
   // initialize time
   time_init(TIME_STEP_MODEL_INS3D);

@@ -270,7 +270,9 @@ double ins3d_step_rk4_adaptive(double dt, double err_bnd_global) {
     // dealias kq
     for(idx = 0; idx < grid_nn_local; idx++) {
       if(!grid_dealias_mask[idx]) {
-        kq[idx] = 0.0;
+        for(n = 0; n < nq; n++) {
+          kq[grid_nn_local*n + idx] = 0.0;
+        }
       }
     }
   }

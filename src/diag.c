@@ -30,7 +30,6 @@ int diag_write(char *ofile_name) {
 
   int ke_pnum = grid_nx/3;
   if(ke_pnum > grid_ny/3) ke_pnum = grid_ny/3;
-  if(ke_pnum > grid_ny/3) ke_pnum = grid_ny/3;
   if(grid_nd == 3) {
     if(ke_pnum > grid_nz/3) ke_pnum = grid_nz/3;
   }
@@ -60,13 +59,17 @@ int diag_write(char *ofile_name) {
       knorm = sqrt(kx*kx + ky*ky + kz*kz);
     }
 
-    if(ksq < ke_pnum*ke_pnum && ksq > 0) {
+    if(ksq < ke_pnum*ke_pnum && knorm > 1e-14) {
       kbox = sqrt(ksq);
-      qabs = cabs(kq[idx]);
       wgt  = grid_wgt[idx];
-      ke_profile[kbox] += wgt*qabs*qabs/(knorm*knorm);
-      ke_local += wgt*qabs*qabs/(knorm*knorm);
-      ens_local += wgt*qabs*qabs;
+      for(n = 0; n < nq; n++) {
+        qabs = cabs(kq[grid_nn_local*n + idx]);
+        ke_profile[kbox] += wgt*qabs*qabs;
+        ke_local += wgt*qabs*qabs;
+      }
+//      ke_profile[kbox] += wgt*qabs*qabs/(knorm*knorm);
+//      ke_local += wgt*qabs*qabs/(knorm*knorm);
+//      ens_local += wgt*qabs*qabs;
     }
   }
 

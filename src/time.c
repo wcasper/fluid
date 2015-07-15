@@ -4,9 +4,9 @@
 #include "stdio.h"
 
 double time = 0.0;
-double time_dt = 1e-1;
+double time_dt = 1e-0;
 double time_step_dt = 1e-3;
-double time_err_max = 1e-6;
+double time_err_max = 1e-8;
 
 double (*time_step_model)(double, double);
 
@@ -41,7 +41,7 @@ int time_step() {
     err = time_err_max + 1.0;
     while(err >= time_err_max) {
       err = time_step_model(dt,time_err_max);
-      printf("%1.16lf %1.16lf %1.16lf\n", err/time_err_max, time_step_dt, dt);
+
       if(err >= time_err_max) {
         dt *= 0.5;
         time_step_dt = dt;
