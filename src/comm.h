@@ -1,6 +1,7 @@
 #ifndef __COMM_H
 #define __COMM_H
 
+#include <stdlib.h>
 #include <complex.h>
 
 extern int my_task;

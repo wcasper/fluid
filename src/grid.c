@@ -7,9 +7,9 @@
 
 ptrdiff_t grid_nd = 2;
 
-ptrdiff_t grid_nx = 256;
-ptrdiff_t grid_ny = 256;
-ptrdiff_t grid_nz = 256;
+ptrdiff_t grid_nx = 64;
+ptrdiff_t grid_ny = 64;
+ptrdiff_t grid_nz = 64;
 
 ptrdiff_t grid_nx_local = 0;
 ptrdiff_t grid_ny_local = 0;
@@ -37,31 +37,27 @@ double *grid_wgt	= NULL;
 
 bool *grid_dealias_mask = NULL;
 
-int grid_init_2d();
-int grid_init_3d();
+int grid_init_layout_2d_ppp();
+int grid_init_layout_3d_ppp();
 
-int grid_init() {
-  if(grid_nd == 2) {
-    grid_init_2d();
-  }
-  else if(grid_nd == 3) {
-    grid_init_3d();
-  }
-  else {
-    fprintf(stderr, "unsupported dimension\n");
+int grid_init(grid_layout_type) {
+  switch(grid_layout_type) {
+    case GRID_LAYOUT_2D_PPP:
+      grid_init_layout_2d_ppp();
+      break;
+    case GRID_LAYOUT_3D_PPP:
+      grid_init_layout_3d_ppp();
+      break;
+    default:
+      fprintf(stderr, "unsupported dimension\n");
+      return 1;
   }
 
   return 0;
 }
 
-int grid_init_2d() {
+int grid_init_layout_2d_ppp() {
   int i, j, idx, ki, kj;
-
-  grid_nx = 256;
-  grid_ny = 256;
-
-  grid_lx = 1.0;
-  grid_ly = 1.0;
 
   grid_dx = grid_lx/(double)grid_nx;
   grid_dy = grid_ly/(double)grid_ny;
@@ -121,16 +117,8 @@ int grid_init_2d() {
   return 0;
 }
 
-int grid_init_3d() {
+int grid_init_layout_3d_ppp() {
   int i, j, k, idx, ki, kj, kk;
-
-  grid_nx = 256;
-  grid_ny = 256;
-  grid_nz = 256;
-
-  grid_lx = 1.0;
-  grid_ly = 1.0;
-  grid_lz = 1.0;
 
   grid_dx = grid_lx/(double)grid_nx;
   grid_dy = grid_ly/(double)grid_ny;
@@ -158,7 +146,7 @@ int grid_init_3d() {
 
   for (i = 0; i < grid_nx_local; i++) {
     for (j = 0; j < grid_ny_local; j++) {
-      for (k = 0; k < grid_nz_local/2 + 1; j++) {
+      for (k = 0; k < grid_nz_local/2 + 1; k++) {
         idx = i*(grid_ny_local)*(grid_nz_local/2 + 1)
             + j*(grid_nz_local/2 + 1) + k;
 

@@ -10,7 +10,7 @@
 
 double *q;
 double complex *kq;
-ptrdiff_t nq;
+ptrdiff_t nq = 1;
 
 FILE *state_ifile,
      *state_ofile;
@@ -21,18 +21,23 @@ fftw_plan *p2s_plans, *s2p_plans;
 
 double fft_normalization;
 
-int state_init() {
+int state_init(int numq) {
   int k, idx;
 
-  nq = 1;
-
+  nq = numq;
   q  = calloc(grid_nn_local*2*nq,sizeof(double));
   kq = calloc(grid_nn_local*nq,sizeof(double complex));
 
   p2s_plans = calloc(nq,sizeof(fftw_plan));
   s2p_plans = calloc(nq,sizeof(fftw_plan));
-     
-  fft_normalization = 1.0/(grid_nx*grid_ny);
+
+  if(grid_nd == 2) {  
+    fft_normalization = 1.0/(grid_nx*grid_ny);
+  }
+  else {
+    fft_normalization = 1.0/(grid_nx*grid_ny*grid_nz);
+  }
+
   /* create plan for out-of-place r2c DFT */
   for(k = 0; k < nq; k++) {
     idx = grid_nn_local*k;

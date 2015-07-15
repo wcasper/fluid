@@ -36,11 +36,13 @@ extern bool *grid_dealias_mask;
 
 extern double *grid_wgt;
 
-int grid_init();
+int grid_init(int grid_layout_type);
 int grid_finalize();
 
 #define GRID_TYPE_PHYSICAL 0
 #define GRID_TYPE_SPECTRAL 1
+#define GRID_LAYOUT_3D_PPP 2
+#define GRID_LAYOUT_2D_PPP 3
 
 #endif
 

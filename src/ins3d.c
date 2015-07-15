@@ -12,26 +12,33 @@
 
 double ins3d_kvisc    = 0.0; // kinematic viscosity
 
-int ins3d_jac(double complex *kjac, double complex *kq_in);
+int ins3d_adv(double complex *kadv, double complex *kq_in);
 
 double ins3d_step_rk4_adaptive(double dt, double err_bnd);
 
-double *rwork1, *rwork2, *rwork3, *rwork4;
+double *rwork1, *rwork2, *rwork3,
+       *rwork4, *rwork5, *rwork6;
 
-double complex *cwork1, *cwork2, *cwork3, *cwork4; 
+double complex *cwork1, *cwork2, *cwork3,
+               *cwork4, *cwork5, *cwork6; 
 
-fftw_plan  iplan1, iplan2, iplan3, iplan4, plan1;
+fftw_plan  iplan1, iplan2, iplan3,
+           iplan4, iplan5, iplan6, plan1;
 
 int ins3d_init() {
   rwork1 = calloc(grid_nn_local*2,sizeof(double));
   rwork2 = calloc(grid_nn_local*2,sizeof(double));
   rwork3 = calloc(grid_nn_local*2,sizeof(double));
   rwork4 = calloc(grid_nn_local*2,sizeof(double));
+  rwork5 = calloc(grid_nn_local*2,sizeof(double));
+  rwork6 = calloc(grid_nn_local*2,sizeof(double));
 
   cwork1 = calloc(grid_nn_local,sizeof(double complex));
   cwork2 = calloc(grid_nn_local,sizeof(double complex));
   cwork3 = calloc(grid_nn_local,sizeof(double complex));
   cwork4 = calloc(grid_nn_local,sizeof(double complex));
+  cwork5 = calloc(grid_nn_local,sizeof(double complex));
+  cwork6 = calloc(grid_nn_local,sizeof(double complex));
 
   plan1 =
     fftw_mpi_plan_dft_r2c_3d(grid_nx, grid_ny, grid_nz, rwork1, cwork1,
@@ -48,7 +55,12 @@ int ins3d_init() {
   iplan4 =
     fftw_mpi_plan_dft_c2r_3d(grid_nx, grid_ny, grid_nz, cwork4, rwork4,
                              MPI_COMM_WORLD, FFTW_MEASURE);
-
+  iplan5 =
+    fftw_mpi_plan_dft_c2r_3d(grid_nx, grid_ny, grid_nz, cwork5, rwork5,
+                             MPI_COMM_WORLD, FFTW_MEASURE);
+  iplan6 =
+    fftw_mpi_plan_dft_c2r_3d(grid_nx, grid_ny, grid_nz, cwork6, rwork6,
+                             MPI_COMM_WORLD, FFTW_MEASURE);
   return 0;
 }
 
@@ -57,33 +69,41 @@ int ins3d_finalize() {
   fftw_destroy_plan(iplan2);
   fftw_destroy_plan(iplan3);
   fftw_destroy_plan(iplan4);
+  fftw_destroy_plan(iplan5);
+  fftw_destroy_plan(iplan6);
   fftw_destroy_plan(plan1);
 
   free(rwork1);
   free(rwork2);
   free(rwork3);
   free(rwork4);
+  free(rwork5);
+  free(rwork6);
 
   free(cwork1);
   free(cwork2);
   free(cwork3);
   free(cwork4);
+  free(cwork5);
+  free(cwork6);
 
   return 0;
 }
 
 // nonlinear part -- careful, careful!
 int ins3d_adv(double complex *kadv, double complex *kq_in) {
-  ptrdiff_t idx;
+  ptrdiff_t idx, n;
 
-  double kx, ky;
+  double kx, ky, kz;
 
-  double normalization = 1.0/(grid_nx*grid_ny);
+  double normalization = 1.0/(grid_nx*grid_ny*grid_nz);
 
-  for(n = 0; n < nq; n++) {
+  for(n = 0; n < 3; n++) {
     for(idx = 0; idx < grid_nn_local; idx++) {
       if(grid_dealias_mask[idx]) {
-        if(fabs(grid_kx[idx]) > 1e-14 || fabs(grid_ky[idx]) > 1e-14) {
+        if(fabs(grid_kx[idx]) > 1e-14 ||
+           fabs(grid_ky[idx]) > 1e-14 ||
+           fabs(grid_kz[idx]) > 1e-14) {
           kx = grid_kx[idx];
           ky = grid_ky[idx];
           kz = grid_kz[idx];
@@ -122,9 +142,9 @@ int ins3d_adv(double complex *kadv, double complex *kq_in) {
     fftw_execute(iplan6);
 
     for(idx = 0; idx < grid_nn_local*2; idx++) {
-      rwork1[idx]  = rwork1[idx]*rwork4[idx];
-                  += rwork2[idx]*rwork5[idx];
-                  += rwork3[idx]*rwork6[idx];
+      rwork1[idx] = rwork1[idx]*rwork4[idx]
+                  + rwork2[idx]*rwork5[idx]
+                  + rwork3[idx]*rwork6[idx];
     }
 
     fftw_execute(plan1);
@@ -137,19 +157,50 @@ int ins3d_adv(double complex *kadv, double complex *kq_in) {
   return 0;
 }
 
+// calculate pressure forcing from intermediate velocity
+// assumes that the density (rho) is constant
+int ins3d_pressure(double complex *kp, double complex *kvel) {
+  ptrdiff_t idx;
+
+  double kx, ky, kz;
+
+  for(idx = 0; idx < grid_nn_local; idx++) {
+    if(grid_dealias_mask[idx]) {
+      if(fabs(grid_kx[idx]) > 1e-14 ||
+         fabs(grid_ky[idx]) > 1e-14 ||
+         fabs(grid_kz[idx]) > 1e-14) {
+        kx = grid_kx[idx];
+        ky = grid_ky[idx];
+        kz = grid_kz[idx];
+
+        kp[idx] =  I*kx*kvel[idx + grid_nn_local*0];
+        kp[idx]+=  I*ky*kvel[idx + grid_nn_local*1];
+        kp[idx]+=  I*kz*kvel[idx + grid_nn_local*2];
+        kp[idx]/=  -(kx*kx + ky*ky + kz*kz);
+      }
+      else{
+        kp[idx] = 0.0 + 0.0*I;
+      }
+    }
+    else {
+      kp[idx] = 0.0 + 0.0*I;
+    }
+  }
+
+  return 0;
+
+}
+
 // Cash-Karp method of adaptive rk4
 double ins3d_step_rk4_adaptive(double dt, double err_bnd) {
-  ptrdiff_t ai, bi, idx;
+  ptrdiff_t ai, bi, n, idx;
 
-  double kx, ky;
+  double kx, ky, kz;
 
-  double complex *ks, *kjac;
+  double complex *ks, *kadv, kp;
 
   double err_max = 0.0,
-         err_avg = 0.0,
          err, err_max_global;
-
-  int    err_cnt = 0;
 
   const int runge_kutta_num = 6;
 
@@ -170,8 +221,8 @@ double ins3d_step_rk4_adaptive(double dt, double err_bnd) {
                        13525./55296.,
                        277/14336., 0.25};
 
-  ks   = calloc(grid_nn_local*runge_kutta_num,sizeof(double complex));
-  kjac = calloc(grid_nn_local,   sizeof(double complex));
+  ks   = calloc(grid_nn_local*runge_kutta_num*nq,sizeof(double complex));
+  kadv = calloc(grid_nn_local*nq,   sizeof(double complex));
 
   for(bi = 0; bi < runge_kutta_num; bi++) {
     for(idx = 0; idx < grid_nn_local; idx++) {
@@ -182,29 +233,49 @@ double ins3d_step_rk4_adaptive(double dt, double err_bnd) {
             dt*a[bi-1][ai-1]*ks[grid_nn_local*(ai-1) + idx];
         }
     }
-    ins3d_jac(kjac, &ks[grid_nn_local*bi]);
+    ins3d_adv(kadv, &ks[grid_nn_local*nq*bi]);
 
+    // calculate the intermediate velocity field
     for(idx = 0; idx < grid_nn_local; idx++) {
       kx = grid_kx[idx];
       ky = grid_ky[idx];
+      kz = grid_kz[idx];
 
-      ks[grid_nn_local*bi + idx] *= -(kx*kx + ky*ky);
-      ks[grid_nn_local*bi + idx] *= ins3d_kvisc;
-      ks[grid_nn_local*bi + idx] -= kjac[idx];
+      for(n = 0; n < 3; n++) {
+        ks[grid_nn_local*(bi*nq + n) + idx] *= -(kx*kx + ky*ky + kz*kz);
+        ks[grid_nn_local*(bi*nq + n) + idx] *= ins3d_kvisc;
+        ks[grid_nn_local*(bi*nq + n) + idx] -= kadv[grid_nn_local*n + idx];
+      }
+    }
+
+    // calculate the pressure forcing
+    ins3d_pressure(&ks[grid_nn_local*(bi*nq + 3)], &ks[grid_nn_local*bi*nq]);
+
+    // using the updated pressure, calculate the updated velocity
+    for(idx = 0; idx < grid_nn_local; idx++) {
+      kx = grid_kx[idx];
+      ky = grid_ky[idx];
+      kz = grid_kz[idx];
+
+      kp = ks[grid_nn_local*(bi*nq + 3) + idx];
+      ks[grid_nn_local*(bi*nq + 0) + idx] -= I*kx*kp;
+      ks[grid_nn_local*(bi*nq + 1) + idx] -= I*ky*kp;
+      ks[grid_nn_local*(bi*nq + 2) + idx] -= I*kz*kp;
     }
   }
 
+  // calculate the maximum error
   for(idx = 0; idx < grid_nn_local; idx++) {
     if(grid_dealias_mask[idx]) {
       for(bi = 0; bi < runge_kutta_num; bi++) {
-        err = dt*(b[bi]-d[bi])*ks[grid_nn_local*bi + idx];
-        if (fabs(err) > err_max) err_max = err;
-        err_avg += fabs(err);
-        err_cnt++;
+        for(n = 0; n < nq; n++) {
+          err = dt*(b[bi]-d[bi])*ks[grid_nn_local*(bi*nq + n) + idx];
+          err = fabs(err);
+          if (err > err_max) err_max = err;
+        }
       }
     }
   }
-  err_avg /= err_cnt;
 
   MPI_Reduce(&err_max,  &err_max_global,  1,
              MPI_DOUBLE, MPI_MAX, master_task, MPI_COMM_WORLD);
@@ -215,7 +286,9 @@ double ins3d_step_rk4_adaptive(double dt, double err_bnd) {
   if(err_max_global < err_bnd) {
     for(idx = 0; idx < grid_nn_local; idx++) {
       for(bi = 0; bi < runge_kutta_num; bi++) {
-        kq[idx] += dt*b[bi]*ks[grid_nn_local*bi + idx];
+        for(n = 0; n < nq; n++) {
+          kq[idx] += dt*b[bi]*ks[grid_nn_local*bi + idx];
+        }
       }
     }
 
@@ -228,7 +301,7 @@ double ins3d_step_rk4_adaptive(double dt, double err_bnd) {
   }
 
   free(ks);
-  free(kjac);
+  free(kadv);
   return err_max_global;
 }
 

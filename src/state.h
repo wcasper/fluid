@@ -9,7 +9,7 @@ extern double complex *kq;	// state variables in spectral space
 
 extern ptrdiff_t nq;		// number of state variables
 
-int state_init();
+int state_init(int numq);
 int state_read(char *ifile_name);
 int state_write(char *ifile_name);
 int state_physical2spectral();

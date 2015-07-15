@@ -87,7 +87,7 @@ int diag_write(char *ofile_name) {
   if(my_task == master_task) {
     ofile = fopen(ofile_name,"w");
     for(n = 0; n < ke_pnum; n++) {
-      fprintf(ofile,"%i %1.15lf\n", n, ke_profile_global[n]);
+      fprintf(ofile,"%i %1.15lf\n", (int)n, ke_profile_global[n]);
     }
 
     fclose(ofile);

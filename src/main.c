@@ -3,11 +3,9 @@
 #include <math.h>
 #include "mpi.h"
 
-#include "comm.h"
-#include "grid.h"
-#include "state.h"
 #include "time.h"
 #include "diag.h"
+#include "init.h"
 
 int main(int argc, char *argv[]) {
   int i;
@@ -16,10 +14,7 @@ int main(int argc, char *argv[]) {
 
   MPI_Init(&argc, &argv);
 
-  comm_init();
-  grid_init();
-  state_init();
-  time_init();
+  init();
 
   for(i  = 0; i < 10000; i++) {
     time_step();
@@ -31,8 +26,7 @@ int main(int argc, char *argv[]) {
 
   state_write("outfile.bin");
 
-  time_finalize();
-  state_finalize();
+  finalize();
 
   MPI_Finalize();
 

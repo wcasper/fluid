@@ -134,10 +134,7 @@ double ins2d_step_rk4_adaptive(double dt, double err_bnd) {
   double complex *ks, *kjac;
 
   double err_max = 0.0,
-         err_avg = 0.0,
          err, err_max_global;
-
-  int    err_cnt = 0;
 
   const int runge_kutta_num = 6;
 
@@ -186,13 +183,11 @@ double ins2d_step_rk4_adaptive(double dt, double err_bnd) {
     if(grid_dealias_mask[idx]) {
       for(bi = 0; bi < runge_kutta_num; bi++) {
         err = dt*(b[bi]-d[bi])*ks[grid_nn_local*bi + idx];
-        if (fabs(err) > err_max) err_max = err;
-        err_avg += fabs(err);
-        err_cnt++;
+        err = fabs(err);
+        if (err > err_max) err_max = err;
       }
     }
   }
-  err_avg /= err_cnt;
 
   MPI_Reduce(&err_max,  &err_max_global,  1,
              MPI_DOUBLE, MPI_MAX, master_task, MPI_COMM_WORLD);
