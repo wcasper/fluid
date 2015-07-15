@@ -155,7 +155,7 @@ int grid_init_layout_3d_ppp() {
         kj = j;
         kk = k;
         if(2*ki > grid_nx) ki -= grid_nx;
-        if(2*kj > grid_ny) ki -= grid_ny;
+        if(2*kj > grid_ny) kj -= grid_ny;
 
         grid_ki[idx] = ki;
         grid_kj[idx] = kj;
