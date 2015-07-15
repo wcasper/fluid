@@ -90,7 +90,7 @@ int grid_init_layout_2d_ppp() {
       grid_ki[idx] = ki;
       grid_kj[idx] = kj;
 
-      if(3*abs(ki) < grid_nx ||
+      if(3*abs(ki) < grid_nx &&
          3*abs(kj) < grid_ny) {
         grid_dealias_mask[idx] = true;
       }
@@ -160,8 +160,8 @@ int grid_init_layout_3d_ppp() {
         grid_kj[idx] = kj;
         grid_kk[idx] = kk;
 
-        if(3*abs(ki) < grid_nx ||
-           3*abs(kj) < grid_ny ||
+        if(3*abs(ki) < grid_nx &&
+           3*abs(kj) < grid_ny &&
            3*abs(kk) < grid_nz) {
           grid_dealias_mask[idx] = true;
         }
