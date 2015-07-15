@@ -72,6 +72,7 @@ int state_init(int numq) {
       kq[grid_nn_local*2 + idx] = grid_kx[idx]*kq[grid_nn_local*0 + idx]
                                 + grid_ky[idx]*kq[grid_nn_local*1 + idx];
       kq[grid_nn_local*2 + idx]/= grid_kz[idx]*(-1.0);
+      printf("%i %i %i %lf %lf %lf\n", grid_ki[idx], grid_kj[idx], grid_kk[idx], creal(kq[grid_nn_local*0 + idx]), creal(kq[grid_nn_local*1 + idx]), creal(kq[grid_nn_local*2 + idx]));
     }
   }
   state_spectral2physical();
@@ -80,10 +81,10 @@ int state_init(int numq) {
 }
 
 int state_physical2spectral() {
-  ptrdiff_t k,idx;
+  ptrdiff_t n,idx;
 
-  for(k = 0; k < nq; k++) {
-    fftw_execute(p2s_plans[k]);
+  for(n = 0; n < nq; n++) {
+    fftw_execute(p2s_plans[n]);
     for(idx = 0;  idx < grid_nn_local; idx++) {
       kq[idx] *= fft_normalization;
     }
@@ -93,10 +94,10 @@ int state_physical2spectral() {
 }
 
 int state_spectral2physical() {
-  ptrdiff_t k;
+  ptrdiff_t n;
 
-  for(k = 0; k < nq; k++) {
-    fftw_execute(s2p_plans[k]);
+  for(n = 0; n < nq; n++) {
+    fftw_execute(s2p_plans[n]);
   }
 
   return 0;
@@ -107,7 +108,7 @@ int state_read(char *ifile_name) {
 
   FILE *ifile;
 
-  complex double *kq_global;
+  double complex *kq_global;
 
   size_t read_size = 0;
 
@@ -119,7 +120,7 @@ int state_read(char *ifile_name) {
   }
 
   if(my_task == master_task) {
-    kq_global  = calloc(read_size, sizeof(complex double));
+    kq_global  = calloc(read_size, sizeof(double complex));
 
     ifile = fopen(ifile_name, "rb");
   }
@@ -128,10 +129,10 @@ int state_read(char *ifile_name) {
     idx = n*grid_nn_local;
 
     if(my_task == master_task) {
-      fread(kq_global, sizeof(complex double), read_size, ifile);
+      fread(kq_global, sizeof(double complex), read_size, ifile);
     }
 
-    scatter_global_array(&kq[idx], kq_global, sizeof(complex double),
+    scatter_global_array(&kq[idx], kq_global, sizeof(double complex),
                          GRID_TYPE_SPECTRAL);
   }
 
@@ -148,7 +149,7 @@ int state_write(char *ofile_name) {
 
   FILE *ofile;
 
-  complex double *kq_global;
+  double complex *kq_global;
 
   size_t write_size = 0;
 
@@ -160,7 +161,7 @@ int state_write(char *ofile_name) {
   }
 
   if(my_task == master_task) {
-    kq_global = calloc(write_size, sizeof(complex double));
+    kq_global = calloc(write_size, sizeof(double complex));
   }
 
   if(my_task == master_task) {
@@ -171,10 +172,10 @@ int state_write(char *ofile_name) {
     idx = n*grid_nn_local;
 
     gather_global_array(&kq[idx], kq_global,
-                        sizeof(complex double), GRID_TYPE_SPECTRAL);
+                        sizeof(double complex), GRID_TYPE_SPECTRAL);
 
     if(my_task == master_task) {
-      fwrite(kq, sizeof(complex double), write_size, ofile);
+      fwrite(kq_global, sizeof(double complex), write_size, ofile);
     }
   }
 
