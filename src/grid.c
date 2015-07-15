@@ -120,6 +120,7 @@ int grid_init_layout_2d_ppp() {
 int grid_init_layout_3d_ppp() {
   int i, j, k, idx, ki, kj, kk;
 
+  grid_nd = 3;
   grid_dx = grid_lx/(double)grid_nx;
   grid_dy = grid_ly/(double)grid_ny;
   grid_dz = grid_lz/(double)grid_nz;
