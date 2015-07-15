@@ -63,9 +63,16 @@ int state_init(int numq) {
 
   // Initialize spectral data
 //  state_read("infile.bin");
-  if(my_task == master_task) {
-    kq[1] = 1.0;
-    kq[(grid_ny_local/2 + 1) + 1] = 1.0;
+  for(idx = 0; idx < grid_nn_local; idx++) {
+    if(abs(grid_ki[idx]) == 1 &&
+       abs(grid_kj[idx]) == 1 &&
+       abs(grid_kk[idx]) == 1 ){
+      kq[grid_nn_local*0 + idx] = (double)rand()/(double)RAND_MAX;
+      kq[grid_nn_local*1 + idx] = (double)rand()/(double)RAND_MAX;
+      kq[grid_nn_local*2 + idx] = grid_kx[idx]*kq[grid_nn_local*0 + idx]
+                                + grid_ky[idx]*kq[grid_nn_local*1 + idx];
+      kq[grid_nn_local*2 + idx]/= grid_kz[idx]*(-1.0);
+    }
   }
   state_spectral2physical();
 

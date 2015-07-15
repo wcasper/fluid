@@ -180,10 +180,10 @@ int grid_init_layout_3d_ppp() {
         }
 
         if((2*k)%grid_nz == 0 && (i > 0 || j > 0)) {
-          grid_wgt[idx] = 0.5;
+          grid_wgt[idx] = 1.0;
         }
         else {
-          grid_wgt[idx] = 1.0;
+          grid_wgt[idx] = 2.0;
         }
       }
     }

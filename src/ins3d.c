@@ -14,7 +14,7 @@ double ins3d_kvisc    = 0.0; // kinematic viscosity
 
 int ins3d_adv(double complex *kadv, double complex *kq_in);
 
-double ins3d_step_rk4_adaptive(double dt, double err_bnd);
+double ins3d_step_rk4_adaptive(double dt, double err_bnd_global);
 
 double *rwork1, *rwork2, *rwork3,
        *rwork4, *rwork5, *rwork6;
@@ -157,42 +157,8 @@ int ins3d_adv(double complex *kadv, double complex *kq_in) {
   return 0;
 }
 
-// calculate pressure forcing from intermediate velocity
-// assumes that the density (rho) is constant
-int ins3d_pressure(double complex *kp, double complex *kvel) {
-  ptrdiff_t idx;
-
-  double kx, ky, kz;
-
-  for(idx = 0; idx < grid_nn_local; idx++) {
-    if(grid_dealias_mask[idx]) {
-      if(fabs(grid_kx[idx]) > 1e-14 ||
-         fabs(grid_ky[idx]) > 1e-14 ||
-         fabs(grid_kz[idx]) > 1e-14) {
-        kx = grid_kx[idx];
-        ky = grid_ky[idx];
-        kz = grid_kz[idx];
-
-        kp[idx] =  I*kx*kvel[idx + grid_nn_local*0];
-        kp[idx]+=  I*ky*kvel[idx + grid_nn_local*1];
-        kp[idx]+=  I*kz*kvel[idx + grid_nn_local*2];
-        kp[idx]/=  -(kx*kx + ky*ky + kz*kz);
-      }
-      else{
-        kp[idx] = 0.0 + 0.0*I;
-      }
-    }
-    else {
-      kp[idx] = 0.0 + 0.0*I;
-    }
-  }
-
-  return 0;
-
-}
-
 // Cash-Karp method of adaptive rk4
-double ins3d_step_rk4_adaptive(double dt, double err_bnd) {
+double ins3d_step_rk4_adaptive(double dt, double err_bnd_global) {
   ptrdiff_t ai, bi, n, idx;
 
   double kx, ky, kz;
@@ -221,21 +187,24 @@ double ins3d_step_rk4_adaptive(double dt, double err_bnd) {
                        13525./55296.,
                        277/14336., 0.25};
 
-  ks   = calloc(grid_nn_local*runge_kutta_num*nq,sizeof(double complex));
-  kadv = calloc(grid_nn_local*nq,   sizeof(double complex));
+  ks   = calloc(grid_nn_local*nq*runge_kutta_num,sizeof(double complex));
+  kadv = calloc(grid_nn_local*nq,                sizeof(double complex));
 
+  // calculate the runge kutta coefficients (ks)
   for(bi = 0; bi < runge_kutta_num; bi++) {
     for(idx = 0; idx < grid_nn_local; idx++) {
-        ks[grid_nn_local*bi + idx] = kq[idx];
+      for(n = 0; n < nq; n++) {
+        ks[grid_nn_local*(nq*bi + n) + idx] = kq[grid_nn_local*n + idx];
 
         for(ai = 1; ai <= bi; ai++) {
-          ks[grid_nn_local*bi + idx] +=
-            dt*a[bi-1][ai-1]*ks[grid_nn_local*(ai-1) + idx];
+          ks[grid_nn_local*(nq*bi + n) + idx] +=
+            dt*a[bi-1][ai-1]*ks[grid_nn_local*(nq*(ai-1) + n) + idx];
         }
+      }
     }
     ins3d_adv(kadv, &ks[grid_nn_local*nq*bi]);
 
-    // calculate the intermediate velocity field
+    // calculate the intermediate velocity field ignoring pressure
     for(idx = 0; idx < grid_nn_local; idx++) {
       kx = grid_kx[idx];
       ky = grid_ky[idx];
@@ -248,16 +217,21 @@ double ins3d_step_rk4_adaptive(double dt, double err_bnd) {
       }
     }
 
-    // calculate the pressure forcing
-    ins3d_pressure(&ks[grid_nn_local*(bi*nq + 3)], &ks[grid_nn_local*bi*nq]);
-
-    // using the updated pressure, calculate the updated velocity
+    // adjust velocity based on pressure forcing
     for(idx = 0; idx < grid_nn_local; idx++) {
       kx = grid_kx[idx];
       ky = grid_ky[idx];
       kz = grid_kz[idx];
 
-      kp = ks[grid_nn_local*(bi*nq + 3) + idx];
+      if(fabs(kx) > 1e-14 ||
+         fabs(ky) > 1e-14 ||
+         fabs(kz) > 1e-14 ){
+        kp = ks[grid_nn_local*(bi*nq + 0) + idx]*kx*I
+           + ks[grid_nn_local*(bi*nq + 1) + idx]*ky*I
+           + ks[grid_nn_local*(bi*nq + 2) + idx]*kz*I;
+        kp/= -(kx*kx + ky*ky + kz*kz);
+      }
+
       ks[grid_nn_local*(bi*nq + 0) + idx] -= I*kx*kp;
       ks[grid_nn_local*(bi*nq + 1) + idx] -= I*ky*kp;
       ks[grid_nn_local*(bi*nq + 2) + idx] -= I*kz*kp;
@@ -267,12 +241,13 @@ double ins3d_step_rk4_adaptive(double dt, double err_bnd) {
   // calculate the maximum error
   for(idx = 0; idx < grid_nn_local; idx++) {
     if(grid_dealias_mask[idx]) {
-      for(bi = 0; bi < runge_kutta_num; bi++) {
-        for(n = 0; n < nq; n++) {
-          err = dt*(b[bi]-d[bi])*ks[grid_nn_local*(bi*nq + n) + idx];
-          err = fabs(err);
-          if (err > err_max) err_max = err;
+      for(n = 0; n < nq; n++) {
+        err = 0.0;
+        for(bi = 0; bi < runge_kutta_num; bi++) {
+          err += dt*(b[bi]-d[bi])*ks[grid_nn_local*(bi*nq + n) + idx];
         }
+        err = fabs(err);
+        if (err > err_max) err_max = err;
       }
     }
   }
@@ -283,11 +258,11 @@ double ins3d_step_rk4_adaptive(double dt, double err_bnd) {
   MPI_Bcast(&err_max_global, 1, MPI_DOUBLE,
             master_task, MPI_COMM_WORLD);
 
-  if(err_max_global < err_bnd) {
+  if(err_max_global < err_bnd_global) {
     for(idx = 0; idx < grid_nn_local; idx++) {
       for(bi = 0; bi < runge_kutta_num; bi++) {
         for(n = 0; n < nq; n++) {
-          kq[idx] += dt*b[bi]*ks[grid_nn_local*bi + idx];
+          kq[grid_nn_local*n + idx] += dt*b[bi]*ks[grid_nn_local*(bi*nq + n) + idx];
         }
       }
     }

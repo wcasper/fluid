@@ -181,11 +181,12 @@ double ins2d_step_rk4_adaptive(double dt, double err_bnd) {
 
   for(idx = 0; idx < grid_nn_local; idx++) {
     if(grid_dealias_mask[idx]) {
+      err = 0.0;
       for(bi = 0; bi < runge_kutta_num; bi++) {
-        err = dt*(b[bi]-d[bi])*ks[grid_nn_local*bi + idx];
-        err = fabs(err);
-        if (err > err_max) err_max = err;
+        err+= dt*(b[bi]-d[bi])*ks[grid_nn_local*bi + idx];
       }
+      err = fabs(err);
+      if (err > err_max) err_max = err;
     }
   }
 
