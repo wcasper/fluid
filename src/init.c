@@ -9,14 +9,14 @@ int init() {
   // initialize MPI task numbers
   comm_init();
 
+  // read in the configuration file
+  config_read("config.ini");
+
   // initialize grid
-  grid_nx = 32;
-  grid_ny = 32;
-  grid_nz = 32;
-  grid_init(GRID_LAYOUT_3D_PPP);
+  grid_init();
 
   // initialize state
-  state_init(3);
+  state_init();
 
   // initialize time
   time_init(TIME_STEP_MODEL_INS3D);
