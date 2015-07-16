@@ -72,7 +72,6 @@ int state_init(int numq) {
       kq[grid_nn_local*2 + idx] = grid_kx[idx]*kq[grid_nn_local*0 + idx]
                                 + grid_ky[idx]*kq[grid_nn_local*1 + idx];
       kq[grid_nn_local*2 + idx]/= grid_kz[idx]*(-1.0);
-      printf("%i %i %i %lf %lf %lf\n", grid_ki[idx], grid_kj[idx], grid_kk[idx], creal(kq[grid_nn_local*0 + idx]), creal(kq[grid_nn_local*1 + idx]), creal(kq[grid_nn_local*2 + idx]));
     }
   }
   state_spectral2physical();
