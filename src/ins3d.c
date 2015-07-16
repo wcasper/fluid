@@ -98,7 +98,7 @@ int ins3d_adv(double complex *kadv, double complex *kq_in) {
 
   double normalization = 1.0/(grid_nx*grid_ny*grid_nz);
 
-  for(n = 0; n < 3; n++) {
+  for(n = 0; n < nq; n++) {
     for(idx = 0; idx < grid_nn_local; idx++) {
       if(grid_dealias_mask[idx]) {
         if(fabs(grid_kx[idx]) > 1e-14 ||
@@ -210,7 +210,7 @@ double ins3d_step_rk4_adaptive(double dt, double err_bnd_global) {
       ky = grid_ky[idx];
       kz = grid_kz[idx];
 
-      for(n = 0; n < 3; n++) {
+      for(n = 0; n < nq; n++) {
         ks[grid_nn_local*(bi*nq + n) + idx] *= -(kx*kx + ky*ky + kz*kz);
         ks[grid_nn_local*(bi*nq + n) + idx] *= ins3d_kvisc;
         ks[grid_nn_local*(bi*nq + n) + idx] -= kadv[grid_nn_local*n + idx];
