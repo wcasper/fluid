@@ -21,10 +21,13 @@ fftw_plan *p2s_plans, *s2p_plans;
 
 double fft_normalization;
 
-int state_init(int numq) {
+state_init_type_t state_init_type = STATE_INIT_TYPE_PATCHES_2D;
+
+char * state_restart_file_name = NULL;
+
+int state_init() {
   int k, idx;
 
-  nq = numq;
   q  = calloc(grid_nn_local*2*nq,sizeof(double));
   kq = calloc(grid_nn_local*nq,sizeof(double complex));
 
@@ -62,17 +65,26 @@ int state_init(int numq) {
   }
 
   // Initialize spectral data
-//  state_read("infile.bin");
-  for(idx = 0; idx < grid_nn_local; idx++) {
-    if(abs(grid_ki[idx]) == 1 &&
-       abs(grid_kj[idx]) == 1 &&
-       abs(grid_kk[idx]) == 1 ){
-      kq[grid_nn_local*0 + idx] = (double)rand()/(double)RAND_MAX;
-      kq[grid_nn_local*1 + idx] = (double)rand()/(double)RAND_MAX;
-      kq[grid_nn_local*2 + idx] = grid_kx[idx]*kq[grid_nn_local*0 + idx]
-                                + grid_ky[idx]*kq[grid_nn_local*1 + idx];
-      kq[grid_nn_local*2 + idx]/= grid_kz[idx]*(-1.0);
-    }
+  switch(state_init_type) {
+    case STATE_INIT_TYPE_RESTART:
+      state_read(state_restart_file_name);
+    break;
+    case STATE_INIT_TYPE_PATCHES_3D:
+      for(idx = 0; idx < grid_nn_local; idx++) {
+        if(abs(grid_ki[idx]) == 1 &&
+           abs(grid_kj[idx]) == 1 &&
+           abs(grid_kk[idx]) == 1 ){
+          kq[grid_nn_local*0 + idx] = (double)rand()/(double)RAND_MAX;
+          kq[grid_nn_local*1 + idx] = (double)rand()/(double)RAND_MAX;
+          kq[grid_nn_local*2 + idx] = grid_kx[idx]*kq[grid_nn_local*0 + idx]
+                                    + grid_ky[idx]*kq[grid_nn_local*1 + idx];
+          kq[grid_nn_local*2 + idx]/= grid_kz[idx]*(-1.0);
+        }
+      }
+    break;
+    default:
+      fprintf(stderr, "unknown state initialization\n");
+      return 1;
   }
   state_spectral2physical();
 
@@ -198,6 +210,8 @@ int state_finalize() {
   }
   free(p2s_plans);
   free(s2p_plans);
+
+  if(state_restart_file_name) free(state_restart_file_name);
 
   return 0;
 }
