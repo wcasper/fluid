@@ -36,13 +36,25 @@ extern bool *grid_dealias_mask;
 
 extern double *grid_wgt;
 
-int grid_init(int grid_layout_type);
+int grid_init();
 int grid_finalize();
 
-#define GRID_TYPE_PHYSICAL 0
-#define GRID_TYPE_SPECTRAL 1
-#define GRID_LAYOUT_3D_PPP 2
-#define GRID_LAYOUT_2D_PPP 3
+typedef enum {
+  GRID_TYPE_PHYSICAL, /// physical grid
+  GRID_TYPE_SPECTRAL, /// spectral grid
+} grid_type_t;
+
+typedef enum {
+  GRID_LAYOUT_2D_PP,  /// 2d doubly periodic
+  GRID_LAYOUT_2D_PN,  /// 2d periodic/neumann
+  GRID_LAYOUT_2D_NN,  /// 2d neumann/neumann
+  GRID_LAYOUT_3D_PPP, /// 3d triply periodic
+  GRID_LAYOUT_3D_PPN, /// 3d periodic/periodic/neumann
+  GRID_LAYOUT_3D_PNN, /// 3d periodic/neumann/neumann
+  GRID_LAYOUT_3D_NNN, /// 3d neumann/neumann/neumann
+} grid_layout_t;
+
+extern grid_layout_t grid_layout;
 
 #endif
 

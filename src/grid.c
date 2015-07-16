@@ -37,13 +37,15 @@ double *grid_wgt	= NULL;
 
 bool *grid_dealias_mask = NULL;
 
-int grid_init_layout_2d_ppp();
+grid_layout_t grid_layout = GRID_LAYOUT_2D_PP;
+
+int grid_init_layout_2d_pp();
 int grid_init_layout_3d_ppp();
 
-int grid_init(grid_layout_type) {
-  switch(grid_layout_type) {
-    case GRID_LAYOUT_2D_PPP:
-      grid_init_layout_2d_ppp();
+int grid_init() {
+  switch(grid_layout) {
+    case GRID_LAYOUT_2D_PP:
+      grid_init_layout_2d_pp();
       break;
     case GRID_LAYOUT_3D_PPP:
       grid_init_layout_3d_ppp();
@@ -56,7 +58,7 @@ int grid_init(grid_layout_type) {
   return 0;
 }
 
-int grid_init_layout_2d_ppp() {
+int grid_init_layout_2d_pp() {
   int i, j, idx, ki, kj;
 
   grid_dx = grid_lx/(double)grid_nx;
