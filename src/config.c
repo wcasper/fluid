@@ -9,6 +9,7 @@
 #include "grid.h"
 #include "time.h"
 #include "state.h"
+#include "model.h"
 
 int config_read(char *config_file_name) {
   dictionary *dict;
@@ -26,7 +27,7 @@ int config_read(char *config_file_name) {
       status = 1;
     }
   }
-  error_check(status, "error reading config file\n");
+  error_check(&status, "error reading config file\n");
   if(status) return status;
   
   if(my_task == master_task) {
@@ -47,7 +48,7 @@ int config_read(char *config_file_name) {
         break;
     }
   }
-  error_check(status, "bad nd value in config file\n");
+  error_check(&status, "bad nd value in config file\n");
   if(status) return status;
 
   if(my_task == master_task) {
@@ -66,7 +67,10 @@ int config_read(char *config_file_name) {
     // read in time initialization data
     time    = iniparser_getdouble(dict, "time:t0", 0.0);
     time_dt = iniparser_getdouble(dict, "time:dt", 1.0);
-  
+
+    // read in model initialization data
+    model_type = iniparser_getint(dict, "model:type", -1);
+
     // free the configuration file
     iniparser_freedict(dict);
 
