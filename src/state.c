@@ -26,7 +26,7 @@ state_init_type_t state_init_type = STATE_INIT_TYPE_PATCHES_2D;
 char * state_restart_file_name = NULL;
 
 int state_init() {
-  int k, idx;
+  int n, idx;
 
   q  = calloc(grid_nn_local*2*nq,sizeof(double));
   kq = calloc(grid_nn_local*nq,sizeof(double complex));
@@ -42,22 +42,22 @@ int state_init() {
   }
 
   /* create plan for out-of-place r2c DFT */
-  for(k = 0; k < nq; k++) {
-    idx = grid_nn_local*k;
+  for(n = 0; n < nq; n++) {
+    idx = grid_nn_local*n;
     if(grid_nd == 2) {
-      p2s_plans[k] =
+      p2s_plans[n] =
         fftw_mpi_plan_dft_r2c_2d(grid_nx, grid_ny, &q[idx*2], &kq[idx],
                                  MPI_COMM_WORLD, FFTW_MEASURE);
-      s2p_plans[k] =
+      s2p_plans[n] =
         fftw_mpi_plan_dft_c2r_2d(grid_nx, grid_ny, &kq[idx], &q[idx*2],
                                  MPI_COMM_WORLD, FFTW_MEASURE);
     }
     else {
-      p2s_plans[k] =
+      p2s_plans[n] =
         fftw_mpi_plan_dft_r2c_3d(grid_nx, grid_ny, grid_nz,
                                  &q[idx*2], &kq[idx],
                                  MPI_COMM_WORLD, FFTW_MEASURE);
-      s2p_plans[k] =
+      s2p_plans[n] =
         fftw_mpi_plan_dft_c2r_3d(grid_nx, grid_ny, grid_nz,
                                  &kq[idx], &q[idx*2],
                                  MPI_COMM_WORLD, FFTW_MEASURE);
