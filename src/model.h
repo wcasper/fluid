@@ -9,5 +9,7 @@ typedef enum {
   MODEL_INS3D,
 } model_type_t;
 
+extern model_type_t model_type;
+
 #endif
 
