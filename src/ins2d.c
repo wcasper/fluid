@@ -26,7 +26,7 @@ int ins2d_init() {
   int status = 0;
 
   // sanity check
-  status = (nq != 3);
+  status = (nq != 1);
   error_check(&status, "wrong number of physical variables\n");
   if(status) return status;
 
