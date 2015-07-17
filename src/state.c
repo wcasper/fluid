@@ -70,6 +70,14 @@ int state_init() {
     case STATE_INIT_TYPE_RESTART:
       state_read(state_restart_file_name);
     break;
+    case STATE_INIT_TYPE_PATCHES_2D:
+      for(idx = 0; idx < grid_nn_local; idx++) {
+        if(abs(grid_ki[idx]) == 1 &&
+           abs(grid_kj[idx]) == 1 ){
+          kq[idx] = (double)rand()/(double)RAND_MAX;
+        }
+      }
+    break;
     case STATE_INIT_TYPE_PATCHES_3D:
       for(idx = 0; idx < grid_nn_local; idx++) {
         if(abs(grid_ki[idx]) == 1 &&
