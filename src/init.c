@@ -4,6 +4,7 @@
 #include "grid.h"
 #include "state.h"
 #include "time.h"
+#include "config.h"
 
 int init() {
   // initialize MPI task numbers

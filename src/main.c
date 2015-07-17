@@ -6,6 +6,7 @@
 #include "time.h"
 #include "diag.h"
 #include "init.h"
+#include "state.h"
 
 int main(int argc, char *argv[]) {
   int i;
