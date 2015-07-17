@@ -21,6 +21,8 @@ int comm_init() {
 }
 
 int scatter_global_array(void *local, void *global, size_t size, grid_type_t grid_type) {
+  int stat = 0;
+
   int task, tag1, tag2, tag3,
       task_n0, //starting index of task
       task_nn; //number of indices in the current task
@@ -46,10 +48,13 @@ int scatter_global_array(void *local, void *global, size_t size, grid_type_t gri
         break;
 
       default:
-        fprintf(stderr,"Unknown grid type\n");
-        exit(EXIT_FAILURE);
+        stat = 1;
     }
+  }
+  error_check(stat, "unknown grid type\n");
+  if(stat) return stat;
 
+  if(my_task == master_task) {
     for(task = 1; task < num_tasks; task++) {
       MPI_Recv(&task_n0,1,MPI_INT,task,
 		tag1,MPI_COMM_WORLD,&status);
@@ -74,8 +79,7 @@ int scatter_global_array(void *local, void *global, size_t size, grid_type_t gri
           break;
 
         default:
-          fprintf(stderr,"Unknown grid type\n");
-          exit(EXIT_FAILURE);
+          break;
       }
 
       MPI_Send(&((char *)global)[idx], num, MPI_CHAR,
@@ -99,8 +103,7 @@ int scatter_global_array(void *local, void *global, size_t size, grid_type_t gri
           break;
 
         default:
-          fprintf(stderr,"Unknown grid type\n");
-          exit(EXIT_FAILURE);
+          break;
       }
 
       MPI_Recv(local, num, MPI_CHAR, master_task,
@@ -112,6 +115,8 @@ int scatter_global_array(void *local, void *global, size_t size, grid_type_t gri
 }
 
 int gather_global_array(void *local, void *global, size_t size, grid_type_t grid_type) {
+  int stat = 0;
+
   int task, tag1, tag2, tag3,
       task_n0, //starting index of task
       task_nn; //number of indices in the current task
@@ -137,10 +142,14 @@ int gather_global_array(void *local, void *global, size_t size, grid_type_t grid
         break;
 
       default:
-        fprintf(stderr,"Unknown grid type\n");
-        exit(EXIT_FAILURE);
+        stat = 1;
+        break;
     }
+  }
+  error_check(&stat, "unknown grid type\n");
+  if(stat) return stat;
 
+  if(my_task == master_task) {
     for(task = 1; task < num_tasks; task++) {
       MPI_Recv(&task_n0,1,MPI_INT,task,
 		tag1,MPI_COMM_WORLD,&status);
@@ -165,8 +174,7 @@ int gather_global_array(void *local, void *global, size_t size, grid_type_t grid
           break;
 
         default:
-          fprintf(stderr,"Unknown grid type\n");
-          exit(EXIT_FAILURE);
+          break;
       }
 
       MPI_Recv(&((char *)global)[idx], num, MPI_CHAR, task,
@@ -190,8 +198,7 @@ int gather_global_array(void *local, void *global, size_t size, grid_type_t grid
           break;
 
         default:
-          fprintf(stderr,"Unknown grid type\n");
-          exit(EXIT_FAILURE);
+          break;
       }
 
       MPI_Send(local, num, MPI_CHAR,
