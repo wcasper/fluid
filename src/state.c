@@ -3,6 +3,7 @@
 #include <math.h>
 #include <complex.h>
 #include <fftw3-mpi.h>
+#include <assert.h>
 
 #include "state.h"
 #include "grid.h"
@@ -134,6 +135,7 @@ int state_read(char *ifile_name) {
     kq_global  = calloc(read_size, sizeof(double complex));
 
     ifile = fopen(ifile_name, "rb");
+    assert(ifile);
   }
 
   for(n = 0; n < nq; n++) {
@@ -177,6 +179,7 @@ int state_write(char *ofile_name) {
 
   if(my_task == master_task) {
     ofile = fopen(ofile_name, "wb");
+    assert(ofile);
   }
 
   for(n = 0; n < nq; n++) {

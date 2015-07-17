@@ -3,6 +3,7 @@
 #include <math.h>
 #include <complex.h>
 #include <mpi.h>
+#include <assert.h>
 
 #include "diag.h"
 #include "grid.h"
@@ -89,6 +90,7 @@ int diag_write(char *ofile_name) {
 
   if(my_task == master_task) {
     ofile = fopen(ofile_name,"w");
+    assert(ofile);
     for(n = 0; n < ke_pnum; n++) {
       fprintf(ofile,"%i %1.15lf\n", (int)n, ke_profile_global[n]);
     }
