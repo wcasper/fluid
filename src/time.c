@@ -1,6 +1,4 @@
 #include "time.h"
-#include "ins2d.h"
-#include "ins3d.h"
 #include "stdio.h"
 
 double time = 0.0;
@@ -10,19 +8,8 @@ double time_err_max = 1e-8;
 
 double (*time_step_model)(double, double);
 
-int time_init(int time_step_model_type) {
-  switch(time_step_model_type) {
-    case(TIME_STEP_MODEL_INS2D):
-      ins2d_init();
-      time_step_model = &ins2d_step_rk4_adaptive;
-      break;
-
-    case(TIME_STEP_MODEL_INS3D):
-      ins3d_init();
-      time_step_model = &ins3d_step_rk4_adaptive;
-      break;
-  }
-
+int time_step_set(double (*step_function)(double, double)) {
+  time_step_model = step_function;
   return 0;
 }
 
@@ -58,7 +45,6 @@ int time_step() {
 }
 
 int time_finalize() {
-  ins2d_finalize();
 
   return 0;
 }

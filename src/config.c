@@ -23,10 +23,10 @@ int config_read(char *config_file_name) {
     // read the configuration file
     dict = iniparser_load(config_file_name);
     if(!dict) {
-      fprintf(stderr, "error reading config file\n");
       status = 1;
     }
   }
+  error_check(status, "error reading config file\n");
   if(status) return status;
   
   if(my_task == master_task) {
@@ -43,12 +43,14 @@ int config_read(char *config_file_name) {
         grid_nz = iniparser_getint(dict, "grid:nz", grid_nz);
         break;
       default:
-        fprintf(stderr, "Bad nd value in config file\n");
         status = 1;
         break;
     }
-    if(status) return status;
+  }
+  error_check(status, "bad nd value in config file\n");
+  if(status) return status;
 
+  if(my_task == master_task) {
     grid_layout = iniparser_getint(dict, "grid:layout", grid_layout);
   
     // read in state initialization data
@@ -69,7 +71,6 @@ int config_read(char *config_file_name) {
     iniparser_freedict(dict);
 
   }
-  if(status) return status;
 
   // broadcast data from master_task to all other processors
   MPI_Bcast(&grid_nd,1,MPI_INT,master_task,MPI_COMM_WORLD);

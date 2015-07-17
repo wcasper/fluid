@@ -20,7 +20,7 @@ int comm_init() {
   return 0;
 }
 
-int scatter_global_array(void *local, void *global, size_t size, int grid_type) {
+int scatter_global_array(void *local, void *global, size_t size, grid_type_t grid_type) {
   int task, tag1, tag2, tag3,
       task_n0, //starting index of task
       task_nn; //number of indices in the current task
@@ -111,7 +111,7 @@ int scatter_global_array(void *local, void *global, size_t size, int grid_type) 
   return 0;
 }
 
-int gather_global_array(void *local, void *global, size_t size, int grid_type) {
+int gather_global_array(void *local, void *global, size_t size, grid_type_t grid_type) {
   int task, tag1, tag2, tag3,
       task_n0, //starting index of task
       task_nn; //number of indices in the current task

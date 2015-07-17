@@ -23,6 +23,13 @@ double complex *cwork1, *cwork2, *cwork3, *cwork4;
 fftw_plan  iplan1, iplan2, iplan3, iplan4, plan1;
 
 int ins2d_init() {
+  int status = 0;
+
+  // sanity check
+  status = (nq != 3);
+  error_check(&status, "wrong number of physical variables\n");
+  if(status) return status;
+
   rwork1 = calloc(grid_nn_local*2,sizeof(double));
   rwork2 = calloc(grid_nn_local*2,sizeof(double));
   rwork3 = calloc(grid_nn_local*2,sizeof(double));

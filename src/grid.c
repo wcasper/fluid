@@ -48,19 +48,14 @@ int grid_init() {
   switch(grid_layout) {
     case GRID_LAYOUT_2D_PP:
       status = grid_init_layout_2d_pp();
-      if(status) {
-        fprintf(stderr, "error in grid_init_layout_2d_pp\n");
-      }
+      error_check(&status, "error in grid_init_layout_2d_pp\n");
       break;
     case GRID_LAYOUT_3D_PPP:
       status = grid_init_layout_3d_ppp();
-      if(status) {
-        fprintf(stderr, "error in grid_init_layout_3d_ppp\n");
-      }
+      error_check(&status, "error in grid_init_layout_3d_ppp\n");
       break;
     default:
-      fprintf(stderr, "unsupported grid layout\n");
-      status = 1;
+      error_check(&status, "unsupported grid layout\n");
       break;
   }
 
@@ -68,17 +63,12 @@ int grid_init() {
 }
 
 int grid_init_layout_2d_pp() {
-  int i, j, idx, ki, kj;
+  int i, j, idx, ki, kj, status;
 
   // sanity check
-  if(grid_nd != 2) {
-    fprintf(stderr, "grid_init_layout_2d_pp called with wrong dimension\n");
-    return 1;
-  }
-  if(grid_nx <  0 || grid_ny < 0) {
-    fprintf(stderr, "grid_init_layout_2d_pp called with bad nx/ny\n");
-    return 1;
-  }
+  status = (grid_nd != 2);
+  error_check(&status, "wrong dimension\n");
+  if(status) return status;
 
   grid_dx = grid_lx/(double)grid_nx;
   grid_dy = grid_ly/(double)grid_ny;
@@ -139,17 +129,12 @@ int grid_init_layout_2d_pp() {
 }
 
 int grid_init_layout_3d_ppp() {
-  int i, j, k, idx, ki, kj, kk;
+  int i, j, k, idx, ki, kj, kk, status;
 
   // sanity check
-  if(grid_nd != 3) {
-    fprintf(stderr, "grid_init_layout_2d_pp called with wrong dimension\n");
-    return 1;
-  }
-  if(grid_nx <  0 || grid_ny < 0 || grid_nz < 0) {
-    fprintf(stderr, "grid_init_layout_2d_pp called with bad nx/ny\n");
-    return 1;
-  }
+  status = (grid_nd != 3);
+  error_check(&status, "wrong dimension\n");
+  if(status) return status;
 
   grid_dx = grid_lx/(double)grid_nx;
   grid_dy = grid_ly/(double)grid_ny;

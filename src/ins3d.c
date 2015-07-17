@@ -26,6 +26,13 @@ fftw_plan  iplan1, iplan2, iplan3,
            iplan4, iplan5, iplan6, plan1;
 
 int ins3d_init() {
+  int status = 0;
+
+  // sanity check
+  status = (nq != 3);
+  error_check(&status, "wrong number of physical variables\n");
+  if(status) return status;
+
   rwork1 = calloc(grid_nn_local*2,sizeof(double));
   rwork2 = calloc(grid_nn_local*2,sizeof(double));
   rwork3 = calloc(grid_nn_local*2,sizeof(double));

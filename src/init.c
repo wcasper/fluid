@@ -5,52 +5,42 @@
 #include "comm.h"
 #include "grid.h"
 #include "state.h"
-#include "time.h"
 #include "config.h"
+#include "error.h"
 
 int init() {
   int status = 0;
 
   // initialize MPI task numbers
   status = comm_init();
-  if(status) {
-    fprintf(stderr, "error in comm_init\n");
-    return status;
-  }
+  error_check(&status, "error_in comm_init\n");
+  if(status) return status;
 
   // read in the configuration file
   status = config_read("example.ini");
-  if(status) {
-    fprintf(stderr, "error in config_read\n");
-    return status;
-  }
+  error_check(&status, "error_in config_read\n");
+  if(status) return status;
 
   // initialize grid
   status = grid_init();
-  if(status) {
-    fprintf(stderr, "error in grid_init\n");
-    return status;
-  }
+  error_check(&status, "error_in grid_init\n");
+  if(status) return status;
 
   // initialize state
   status = state_init();
-  if(status) {
-    fprintf(stderr, "error in state_init\n");
-    return status;
-  }
+  error_check(&status, "error_in state_init\n");
+  if(status) return status;
 
-  // initialize time
-  status = time_init(TIME_STEP_MODEL_INS3D);
-  if(status) {
-    fprintf(stderr, "error in time_init\n");
-    return status;
-  }
+  // initialize model
+  status = model_init();
+  error_check(&status, "error_in model_init\n");
+  if(status) return status;
 
   return status;
 }
 
 int finalize() {
-  time_finalize();
+  model_finalize();
   state_finalize();
 
   return 0;
