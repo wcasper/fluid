@@ -10,6 +10,7 @@
 #include "time.h"
 #include "state.h"
 #include "model.h"
+#include "error.h"
 
 int config_read(char *config_file_name) {
   dictionary *dict;

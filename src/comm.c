@@ -5,6 +5,7 @@
 #include "mpi.h"
 #include "comm.h"
 #include "grid.h"
+#include "error.h"
 
 int my_task;
 int num_tasks;
@@ -51,7 +52,7 @@ int scatter_global_array(void *local, void *global, size_t size, grid_type_t gri
         stat = 1;
     }
   }
-  error_check(stat, "unknown grid type\n");
+  error_check(&stat, "unknown grid type\n");
   if(stat) return stat;
 
   if(my_task == master_task) {

@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
 #include <mpi.h>
 
 #include "error.h"
@@ -25,7 +26,7 @@ int error_check(int *status, char *error_message) {
          ems_len = ERROR_MESSAGE_MAX_LENGTH;
       }
 
-      strcpy(ems, error_message, ems_len);
+      strncpy(ems, error_message, ems_len);
       fprintf(stderr, "ERROR: %s\n", error_message);
     }
   }
@@ -52,7 +53,7 @@ int error_exit(int *status, char *error_message) {
          ems_len = ERROR_MESSAGE_MAX_LENGTH;
       }
 
-      strcpy(ems, error_message, ems_len);
+      strncpy(ems, error_message, ems_len);
       fprintf(stderr, "ERROR: %s (crashing)\n", error_message);
     }
   }

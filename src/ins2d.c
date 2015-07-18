@@ -9,6 +9,7 @@
 #include "comm.h"
 #include "state.h"
 #include "diag.h"
+#include "error.h"
 
 double ins2d_kvisc    = 0.0; // kinematic viscosity
 

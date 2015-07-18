@@ -6,6 +6,7 @@
 #include "grid.h"
 #include "state.h"
 #include "config.h"
+#include "model.h"
 #include "error.h"
 
 int init() {

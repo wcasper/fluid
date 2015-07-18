@@ -4,6 +4,7 @@
 #include <stdlib.h>
 
 #include "grid.h"
+#include "error.h"
 
 ptrdiff_t grid_nd = 2;
 
