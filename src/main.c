@@ -1,11 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <math.h>
 #include "mpi.h"
 
 #include "time.h"
 #include "init.h"
 #include "state.h"
+#include "config.h"
 
 int main(int argc, char *argv[]) {
   int i;
@@ -15,6 +17,11 @@ int main(int argc, char *argv[]) {
   MPI_Init(&argc, &argv);
 
   init();
+
+  if(argc > 1) {
+    config_file_name = argv[1];
+    printf("Using config file %s\n", config_file_name);
+  }
 
   for(i  = 0; i < 1000; i++) {
     if(i%1 == 0) {
