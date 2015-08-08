@@ -72,6 +72,11 @@ int bouss3d_init() {
   error_check(&status, "wrong number of physical variables\n");
   if(status) return status;
 
+  // sanity check
+  status = (grid_nd != 3);
+  error_check(&status, "wrong number of dimensions\n");
+  if(status) return status;
+
   // read in config file
   status = bouss3d_read_config();
   error_check(&status, "error in bouss3d_read_config\n");

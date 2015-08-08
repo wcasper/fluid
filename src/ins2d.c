@@ -58,6 +58,10 @@ int ins2d_init() {
   error_check(&status, "wrong number of physical variables\n");
   if(status) return status;
 
+  status = (grid_nd != 2);
+  error_check(&status, "wrong number of dimensions\n");
+  if(status) return status;
+
   // read in config file
   status = ins2d_read_config();
   error_check(&status, "error in ins2d_read_config\n");
