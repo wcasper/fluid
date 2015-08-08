@@ -8,15 +8,18 @@
 #include "init.h"
 #include "state.h"
 #include "config.h"
+#include "error.h"
 
 int main(int argc, char *argv[]) {
-  int i;
+  int i, status;
 
   char file_name[256];
 
   MPI_Init(&argc, &argv);
 
-  init();
+  status = init();
+  error_check(&status, "error in init\n");
+  if(status) return status;
 
   if(argc > 1) {
     config_file_name = argv[1];
