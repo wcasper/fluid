@@ -17,14 +17,14 @@ int main(int argc, char *argv[]) {
 
   MPI_Init(&argc, &argv);
 
-  status = init();
-  error_check(&status, "error in init\n");
-  if(status) return status;
-
   if(argc > 1) {
     config_file_name = argv[1];
     printf("Using config file %s\n", config_file_name);
   }
+
+  status = init();
+  error_check(&status, "error in init\n");
+  if(status) return status;
 
   for(i  = 0; i < 1000; i++) {
     if(i%1 == 0) {
