@@ -12,8 +12,8 @@ extern int num_tasks;
 
 int comm_init();
 
-int scatter_global_array(void *local, void *global, size_t size, grid_type_t grid_type);
-int gather_global_array(void *local, void *global, size_t size, grid_type_t grid_type);
+int scatter_global_array(void *local, void *global, size_t size);
+int gather_global_array(void *local, void *global, size_t size);
 
 #endif
 

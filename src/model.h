@@ -7,6 +7,7 @@ int model_finalize();
 typedef enum {
   MODEL_INS2D,
   MODEL_INS3D,
+  MODEL_BOUSS3D
 } model_type_t;
 
 extern model_type_t model_type;

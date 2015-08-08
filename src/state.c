@@ -4,64 +4,61 @@
 #include <complex.h>
 #include <fftw3-mpi.h>
 #include <assert.h>
+#include <iniparser.h>
 
 #include "state.h"
 #include "grid.h"
 #include "comm.h"
+#include "fourier.h"
+#include "config.h"
+#include "error.h"
 
 double *q;
 double complex *kq;
 ptrdiff_t nq = 1;
+grid_vertical_layout_t *state_layout;
+
+double *rwork;
+double complex *cwork;
 
 FILE *state_ifile,
      *state_ofile;
 
 char ifile_name[256] = "init.ieeer8";
 
-fftw_plan *p2s_plans, *s2p_plans;
-
-double fft_normalization;
-
 state_init_type_t state_init_type = STATE_INIT_TYPE_PATCHES_2D;
 
 char * state_restart_file_name = NULL;
 
+static int state_read_config();
+
 int state_init() {
-  int n, idx;
+  int idx2d, idx3d, m, n;
 
-  q  = calloc(grid_nn_local*2*nq,sizeof(double));
-  kq = calloc(grid_nn_local*nq,sizeof(double complex));
+  int status = 0;
 
-  p2s_plans = calloc(nq,sizeof(fftw_plan));
-  s2p_plans = calloc(nq,sizeof(fftw_plan));
+  double d;
 
-  if(grid_nd == 2) {  
-    fft_normalization = 1.0/(grid_nx*grid_ny);
-  }
-  else {
-    fft_normalization = 1.0/(grid_nx*grid_ny*grid_nz);
-  }
+  status = state_read_config();
+  error_check(&status, "error in state_read_config\n");
+  if(status) return status;
 
-  /* create plan for out-of-place r2c DFT */
-  for(n = 0; n < nq; n++) {
-    idx = grid_nn_local*n;
-    if(grid_nd == 2) {
-      p2s_plans[n] =
-        fftw_mpi_plan_dft_r2c_2d(grid_nx, grid_ny, &q[idx*2], &kq[idx],
-                                 MPI_COMM_WORLD, FFTW_MEASURE);
-      s2p_plans[n] =
-        fftw_mpi_plan_dft_c2r_2d(grid_nx, grid_ny, &kq[idx], &q[idx*2],
-                                 MPI_COMM_WORLD, FFTW_MEASURE);
+  q  = fftw_alloc_real(grid_3d_nn_local*2*nq);
+  kq = fftw_alloc_complex(grid_3d_nn_local*nq);
+  state_layout = calloc(nq, sizeof(grid_vertical_layout_t));
+
+  rwork = fftw_alloc_real(grid_3d_nn_local*2*nq);
+  cwork = fftw_alloc_complex(grid_3d_nn_local*nq);
+
+  // zero everything
+  for(idx3d = 0; idx3d < grid_3d_nn_local*2; idx3d++) {
+    for(n = 0; n < nq; n++) {
+      q[grid_3d_nn_local*2*n + idx3d] = 0.0;
     }
-    else {
-      p2s_plans[n] =
-        fftw_mpi_plan_dft_r2c_3d(grid_nx, grid_ny, grid_nz,
-                                 &q[idx*2], &kq[idx],
-                                 MPI_COMM_WORLD, FFTW_MEASURE);
-      s2p_plans[n] =
-        fftw_mpi_plan_dft_c2r_3d(grid_nx, grid_ny, grid_nz,
-                                 &kq[idx], &q[idx*2],
-                                 MPI_COMM_WORLD, FFTW_MEASURE);
+  }
+  for(idx3d = 0; idx3d < grid_3d_nn_local; idx3d++) {
+    for(n = 0; n < nq; n++) {
+      kq[grid_3d_nn_local*n + idx3d] = 0.0 + 0.0*I;
     }
   }
 
@@ -70,54 +67,57 @@ int state_init() {
     case STATE_INIT_TYPE_RESTART:
       state_read(state_restart_file_name);
     break;
-    case STATE_INIT_TYPE_PATCHES_2D:
-      for(idx = 0; idx < grid_nn_local; idx++) {
-        if(abs(grid_ki[idx]) == 1 &&
-           abs(grid_kj[idx]) == 1 ){
-          kq[idx] = (double)rand()/(double)RAND_MAX;
+
+    case STATE_INIT_TYPE_BOUSS3D_TEST1:
+      state_layout[0] = GRID_VERTICAL_LAYOUT_COSINE;
+      state_layout[1] = GRID_VERTICAL_LAYOUT_COSINE;
+      state_layout[2] = GRID_VERTICAL_LAYOUT_SINE;
+      state_layout[3] = GRID_VERTICAL_LAYOUT_SINE;
+
+      for(idx2d = 0; idx2d < grid_2d_nn_local*2; idx2d++) {
+        for(m = 0; m < grid_nz; m++) {
+          idx3d = idx2d + grid_2d_nn_local*2*m;
+          q[grid_3d_nn_local*2*0 + idx3d] = 0.1;
+          d  = pow((grid_2d_x[idx2d]/grid_lx - 0.5),2);
+          d += pow((grid_2d_y[idx2d]/grid_ly - 0.5),2);
+          d += pow((grid_vd_z[m]/grid_lz - 0.5),2);
+          d *= 10.0;
+          //q[grid_3d_nn_local*2*3 + idx3d] = 0.1*exp(-d*d);
         }
       }
-    break;
-    case STATE_INIT_TYPE_PATCHES_3D:
-      for(idx = 0; idx < grid_nn_local; idx++) {
-        if(abs(grid_ki[idx]) == 1 &&
-           abs(grid_kj[idx]) == 1 &&
-           abs(grid_kk[idx]) == 1 ){
-          kq[grid_nn_local*0 + idx] = (double)rand()/(double)RAND_MAX;
-          kq[grid_nn_local*1 + idx] = (double)rand()/(double)RAND_MAX;
-          kq[grid_nn_local*2 + idx] = grid_kx[idx]*kq[grid_nn_local*0 + idx]
-                                    + grid_ky[idx]*kq[grid_nn_local*1 + idx];
-          kq[grid_nn_local*2 + idx]/= grid_kz[idx]*(-1.0);
-        }
-      }
-    break;
+      state_physical2spectral();
+      
+      break;
+
     default:
       fprintf(stderr, "unknown state initialization\n");
       return 1;
   }
-  state_spectral2physical();
 
-  return 0;
+  return status;
 }
 
 int state_physical2spectral() {
   ptrdiff_t n,idx;
 
+  memcpy(rwork,q,grid_3d_nn_local*nq*16);
+
   for(n = 0; n < nq; n++) {
-    fftw_execute(p2s_plans[n]);
-    for(idx = 0;  idx < grid_nn_local; idx++) {
-      kq[idx] *= fft_normalization;
-    }
+    idx = grid_3d_nn_local*n;
+    physical2spectral(&rwork[idx*2],&kq[idx],state_layout[n]);
   }
 
   return 0;
 }
 
 int state_spectral2physical() {
-  ptrdiff_t n;
+  ptrdiff_t n, idx;
+
+  memcpy(cwork,kq,grid_3d_nn_local*nq*16);
 
   for(n = 0; n < nq; n++) {
-    fftw_execute(s2p_plans[n]);
+    idx = grid_3d_nn_local*n;
+    spectral2physical(&cwork[idx],&q[idx*2],state_layout[n]);
   }
 
   return 0;
@@ -128,39 +128,38 @@ int state_read(char *ifile_name) {
 
   FILE *ifile;
 
-  double complex *kq_global;
+  double *q_global;
 
   size_t read_size = 0;
 
-  if(grid_nd == 2) {
-    read_size = grid_nx*(grid_ny/2 + 1);
-  }
-  else {
-    read_size = grid_nx*grid_ny*(grid_nz/2 + 1);
+  read_size = grid_nx*(grid_ny/2 + 1)*2;
+  if(grid_nd == 3) {
+    read_size *= grid_nz;
   }
 
   if(my_task == master_task) {
-    kq_global  = calloc(read_size, sizeof(double complex));
+    q_global  = calloc(read_size, sizeof(double));
 
     ifile = fopen(ifile_name, "rb");
     assert(ifile);
   }
 
   for(n = 0; n < nq; n++) {
-    idx = n*grid_nn_local;
+    idx = n*grid_3d_nn_local*2;
 
     if(my_task == master_task) {
-      fread(kq_global, sizeof(double complex), read_size, ifile);
+      fread(q_global, sizeof(double), read_size, ifile);
     }
 
-    scatter_global_array(&kq[idx], kq_global, sizeof(double complex),
-                         GRID_TYPE_SPECTRAL);
+    scatter_global_array(&q[idx], q_global, sizeof(double));
   }
 
   if(my_task == master_task) {
     fclose(ifile);
-    free(kq_global);
+    free(q_global);
   }
+
+  state_physical2spectral();
 
   return 0;
 }
@@ -170,19 +169,19 @@ int state_write(char *ofile_name) {
 
   FILE *ofile;
 
-  double complex *kq_global;
+  double *q_global;
 
   size_t write_size = 0;
 
-  if(grid_nd == 2) {
-    write_size = grid_nx*(grid_ny/2 + 1);
-  }
-  else {
-    write_size = grid_nx*grid_ny*(grid_nz/2 + 1);
+  state_spectral2physical();
+
+  write_size = grid_nx*(grid_ny/2 + 1)*2;
+  if(grid_nd == 3) {
+    write_size *= grid_nz;
   }
 
   if(my_task == master_task) {
-    kq_global = calloc(write_size, sizeof(double complex));
+    q_global = calloc(write_size, sizeof(double));
   }
 
   if(my_task == master_task) {
@@ -191,39 +190,70 @@ int state_write(char *ofile_name) {
   }
 
   for(n = 0; n < nq; n++) {
-    idx = n*grid_nn_local;
+    idx = n*grid_3d_nn_local*2;
 
-    gather_global_array(&kq[idx], kq_global,
-                        sizeof(double complex), GRID_TYPE_SPECTRAL);
+    gather_global_array(&q[idx], q_global, sizeof(double));
 
     if(my_task == master_task) {
-      fwrite(kq_global, sizeof(double complex), write_size, ofile);
+      fwrite(q_global, sizeof(double), write_size, ofile);
     }
   }
 
   if(my_task == master_task) {
     fclose(ofile);
-    free(kq_global);
+    free(q_global);
   }
 
   return 0;
 }
 
 int state_finalize() {
-  ptrdiff_t k;
-
-  free(q);
-  free(kq);
-
-  for(k = 0; k < nq; k++) {
-    fftw_destroy_plan(p2s_plans[k]);
-    fftw_destroy_plan(s2p_plans[k]);
-  }
-  free(p2s_plans);
-  free(s2p_plans);
+  fftw_free(q);
+  fftw_free(kq);
+  free(state_layout);
+  fftw_free(rwork);
+  fftw_free(cwork);
 
   if(state_restart_file_name) free(state_restart_file_name);
 
   return 0;
 }
+
+int state_read_config() {
+  int status = 0, len;
+
+  dictionary *dict;
+
+  char *file_name;
+
+  if(my_task == master_task) {
+    // read the configuration file
+    dict = iniparser_load(config_file_name);
+    if(!dict) {
+      status = 1;
+    }
+  }
+  error_check(&status, "error reading config file\n");
+  if(status) return status;
+  
+  if(my_task == master_task) {
+    nq = iniparser_getint(dict, "state:nq", nq);
+    state_init_type
+      = (state_init_type_t)iniparser_getint(dict, "state:init", state_init_type);
+    file_name = iniparser_getstring(dict, "state:rfile", NULL);
+    len = 0;
+    if(file_name) {
+      len = strlen(file_name)+1;
+      state_restart_file_name = calloc(len,sizeof(char));
+    }
+  }
+  iniparser_freedict(dict);
+
+  MPI_Bcast(&nq,1,MPI_INT,master_task,MPI_COMM_WORLD);
+
+  error_check(&status, "bad nd value in config file\n");
+
+  return status;
+}
+
 

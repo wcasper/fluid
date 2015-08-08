@@ -9,12 +9,13 @@ extern ptrdiff_t grid_nd;
 extern ptrdiff_t grid_nx;
 extern ptrdiff_t grid_ny;
 extern ptrdiff_t grid_nz;
+extern ptrdiff_t grid_2d_nn;
+extern ptrdiff_t grid_3d_nn;
 
-extern ptrdiff_t grid_nx_local;
-extern ptrdiff_t grid_ny_local;
-extern ptrdiff_t grid_nz_local;
-extern ptrdiff_t grid_nn_local;
-extern ptrdiff_t grid_n0_local;
+extern ptrdiff_t grid_2d_nx_local;
+extern ptrdiff_t grid_2d_nn_local;
+extern ptrdiff_t grid_2d_n0_local;
+extern ptrdiff_t grid_3d_nn_local;
 
 extern double grid_lx;
 extern double grid_ly;
@@ -24,37 +25,36 @@ extern double grid_dx;
 extern double grid_dy;
 extern double grid_dz;
 
-extern double *grid_kx;
-extern double *grid_ky;
-extern double *grid_kz;
+extern double *grid_2d_kx;
+extern double *grid_2d_ky;
+extern double *grid_vd_kzo;
+extern double *grid_vd_kze;
 
-extern int *grid_ki;
-extern int *grid_kj;
-extern int *grid_kk;
+extern double *grid_2d_x;
+extern double *grid_2d_y;
+extern double *grid_vd_z;
 
-extern bool *grid_dealias_mask;
+extern int *grid_2d_i;
+extern int *grid_2d_j;
 
-extern double *grid_wgt;
+extern int *grid_2d_ki;
+extern int *grid_2d_kj;
+
+extern bool *grid_2d_dealias_mask;
+extern bool *grid_2d_buffer;
+
+extern double *grid_2d_wgt;
 
 int grid_init();
-int grid_finalize();
+void grid_finalize();
 
 typedef enum {
-  GRID_TYPE_PHYSICAL, /// physical grid
-  GRID_TYPE_SPECTRAL, /// spectral grid
-} grid_type_t;
+  GRID_VERTICAL_LAYOUT_PERIODIC,
+  GRID_VERTICAL_LAYOUT_SINE,
+  GRID_VERTICAL_LAYOUT_COSINE
+} grid_vertical_layout_t;
 
-typedef enum {
-  GRID_LAYOUT_2D_PP,  /// 2d doubly periodic
-  GRID_LAYOUT_2D_PN,  /// 2d periodic/neumann
-  GRID_LAYOUT_2D_NN,  /// 2d neumann/neumann
-  GRID_LAYOUT_3D_PPP, /// 3d triply periodic
-  GRID_LAYOUT_3D_PPN, /// 3d periodic/periodic/neumann
-  GRID_LAYOUT_3D_PNN, /// 3d periodic/neumann/neumann
-  GRID_LAYOUT_3D_NNN, /// 3d neumann/neumann/neumann
-} grid_layout_t;
-
-extern grid_layout_t grid_layout;
+extern grid_vertical_layout_t grid_vertical_layout;
 
 #endif
 

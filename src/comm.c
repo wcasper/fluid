@@ -21,7 +21,7 @@ int comm_init() {
   return 0;
 }
 
-int scatter_global_array(void *local, void *global, size_t size, grid_type_t grid_type) {
+int scatter_global_array(void *local, void *global, size_t size) {
   int stat = 0;
 
   int task, tag1, tag2, tag3,
@@ -37,23 +37,9 @@ int scatter_global_array(void *local, void *global, size_t size, grid_type_t gri
   tag3  = 3;
 
   if(my_task == master_task) {
-    switch(grid_type) {
-      case GRID_TYPE_PHYSICAL:          
-        num = grid_nn_local*2*size;
-        memcpy(local, global, num);
-        break;
-
-      case GRID_TYPE_SPECTRAL:
-        num = grid_nn_local*size;
-        memcpy(local, global, num);
-        break;
-
-      default:
-        stat = 1;
-    }
+    num = grid_3d_nn_local*2*size;
+    memcpy(local, global, num);
   }
-  error_check(&stat, "unknown grid type\n");
-  if(stat) return stat;
 
   if(my_task == master_task) {
     for(task = 1; task < num_tasks; task++) {
@@ -62,60 +48,33 @@ int scatter_global_array(void *local, void *global, size_t size, grid_type_t gri
       MPI_Recv(&task_nn,1,MPI_INT,task,
 		tag2,MPI_COMM_WORLD,&status);
 
-      if(grid_nd == 2) {
-        idx = (grid_ny/2 + 1)*size;
+      idx = (grid_ny/2 + 1)*2*task_n0*size;
+      if(grid_nd == 3){
+        idx *= grid_nz;
       }
-      else {
-        idx = grid_ny*(grid_nz/2 + 1)*size;
-      }
-      switch(grid_type) {
-        case GRID_TYPE_PHYSICAL:          
-          idx*= task_n0*2;
-          num = task_nn*2*size;
-          break;
-
-        case GRID_TYPE_SPECTRAL:
-          idx*= task_n0;
-          num = task_nn*size;
-          break;
-
-        default:
-          break;
-      }
+      num = task_nn*2*size;
 
       MPI_Send(&((char *)global)[idx], num, MPI_CHAR,
 		task, tag3, MPI_COMM_WORLD);
     }
   }
-
   else {
-      MPI_Send(&grid_n0_local,1,MPI_INT,master_task,
-		tag1,MPI_COMM_WORLD);
-      MPI_Send(&grid_nn_local,1,MPI_INT,master_task,
-		tag2,MPI_COMM_WORLD);
+    MPI_Send(&grid_2d_n0_local,1,MPI_INT,master_task,
+	     tag1,MPI_COMM_WORLD);
+    MPI_Send(&grid_3d_nn_local,1,MPI_INT,master_task,
+             tag2,MPI_COMM_WORLD);
 
-      switch(grid_type) {
-        case GRID_TYPE_PHYSICAL:          
-          num = grid_nn_local*2*size;
-          break;
+    num = grid_3d_nn_local*2*size;
 
-        case GRID_TYPE_SPECTRAL:          
-          num = grid_nn_local*size;
-          break;
-
-        default:
-          break;
-      }
-
-      MPI_Recv(local, num, MPI_CHAR, master_task,
-		tag3, MPI_COMM_WORLD, &status);
+    MPI_Recv(local, num, MPI_CHAR, master_task,
+	     tag3, MPI_COMM_WORLD, &status);
   }
 
 
-  return 0;
+  return stat;
 }
 
-int gather_global_array(void *local, void *global, size_t size, grid_type_t grid_type) {
+int gather_global_array(void *local, void *global, size_t size) {
   int stat = 0;
 
   int task, tag1, tag2, tag3,
@@ -131,24 +90,9 @@ int gather_global_array(void *local, void *global, size_t size, grid_type_t grid
   tag3  = 3;
 
   if(my_task == master_task) {
-    switch(grid_type) {
-      case GRID_TYPE_PHYSICAL:          
-        num = grid_nn_local*2*size;
-        memcpy(global, local, num);
-        break;
-
-      case GRID_TYPE_SPECTRAL:
-        num = grid_nn_local*size;
-        memcpy(global, local, num);
-        break;
-
-      default:
-        stat = 1;
-        break;
-    }
+    num = grid_3d_nn_local*2*size;
+    memcpy(global, local, num);
   }
-  error_check(&stat, "unknown grid type\n");
-  if(stat) return stat;
 
   if(my_task == master_task) {
     for(task = 1; task < num_tasks; task++) {
@@ -157,26 +101,11 @@ int gather_global_array(void *local, void *global, size_t size, grid_type_t grid
       MPI_Recv(&task_nn,1,MPI_INT,task,
 		tag2,MPI_COMM_WORLD,&status);
 
-      if(grid_nd == 2) {
-        idx = (grid_ny/2 + 1)*size;
+      idx = (grid_ny/2 + 1)*2*task_n0*size;
+      if(grid_nd == 3) {
+        idx *= grid_nz;
       }
-      else {
-        idx = grid_ny*(grid_nz/2 + 1)*size;
-      }
-      switch(grid_type) {
-        case GRID_TYPE_PHYSICAL:          
-          idx*= task_n0*2;
-          num = task_nn*2*size;
-          break;
-
-        case GRID_TYPE_SPECTRAL:
-          idx*= task_n0;
-          num = task_nn*size;
-          break;
-
-        default:
-          break;
-      }
+      num = task_nn*2*size;
 
       MPI_Recv(&((char *)global)[idx], num, MPI_CHAR, task,
 		tag3, MPI_COMM_WORLD, &status);
@@ -184,29 +113,19 @@ int gather_global_array(void *local, void *global, size_t size, grid_type_t grid
   }
 
   else {
-      MPI_Send(&grid_n0_local,1,MPI_INT,master_task,
-		tag1,MPI_COMM_WORLD);
-      MPI_Send(&grid_nn_local,1,MPI_INT,master_task,
-		tag2,MPI_COMM_WORLD);
+    MPI_Send(&grid_2d_n0_local,1,MPI_INT,master_task,
+             tag1,MPI_COMM_WORLD);
+    MPI_Send(&grid_3d_nn_local,1,MPI_INT,master_task,
+             tag2,MPI_COMM_WORLD);
 
-      switch(grid_type) {
-        case GRID_TYPE_PHYSICAL:          
-          num = grid_nn_local*2*size;
-          break;
+    num = grid_3d_nn_local*2*size;
 
-        case GRID_TYPE_SPECTRAL:          
-          num = grid_nn_local*size;
-          break;
-
-        default:
-          break;
-      }
-
-      MPI_Send(local, num, MPI_CHAR,
-		master_task, tag3, MPI_COMM_WORLD);
+    MPI_Send(local, num, MPI_CHAR,
+             master_task, tag3, MPI_COMM_WORLD);
   }
 
 
-  return 0;
+  return stat;
 }
+
 
