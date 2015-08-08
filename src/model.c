@@ -5,6 +5,7 @@
 #include "comm.h"
 #include "config.h"
 #include "time.h"
+#include "ins2d.h"
 #include "bouss3d.h"
 #include "error.h"
 
@@ -20,6 +21,11 @@ int model_init() {
   if(status) return status;
 
   switch(model_type) {
+    case MODEL_INS2D:
+      time_step_set(ins2d_step_rk4_adaptive);
+      status = ins2d_init();
+      error_check(&status,"error in ins2d_init\n");
+      break;
     case MODEL_BOUSS3D:
       time_step_set(bouss3d_step_rk4_adaptive);
       status = bouss3d_init();

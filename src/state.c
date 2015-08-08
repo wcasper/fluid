@@ -68,6 +68,12 @@ int state_init() {
       state_read(state_restart_file_name);
     break;
 
+    case STATE_INIT_TYPE_PATCHES_2D:
+      for(idx2d = 0; idx2d < grid_2d_nn_local*2; idx2d++) {
+        q[idx2d]  = cos(4.0*M_PI*grid_2d_x[idx2d]);
+        q[idx2d] *= cos(4.0*M_PI*grid_2d_y[idx2d]);
+      }
+
     case STATE_INIT_TYPE_BOUSS3D_TEST1:
       state_layout[0] = GRID_VERTICAL_LAYOUT_COSINE;
       state_layout[1] = GRID_VERTICAL_LAYOUT_COSINE;
