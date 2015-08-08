@@ -118,6 +118,8 @@ int grid_init() {
     case 2:
       status = grid_init_layout_2d();
       error_check(&status, "error in grid_init_layout_2d\n");
+      grid_3d_nn = grid_2d_nn;
+      grid_3d_nn_local = grid_2d_nn_local;
       break;
     case 3:
       status = grid_init_layout_3d();
