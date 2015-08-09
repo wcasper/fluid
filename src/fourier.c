@@ -68,17 +68,19 @@ int fourier_init() {
 void fourier_finalize() {
   fftw_destroy_plan(fp2d);
   fftw_destroy_plan(rp2d);
-  fftw_destroy_plan(fpvc);
-  fftw_destroy_plan(rpvc);
-  fftw_destroy_plan(fpvs);
-  fftw_destroy_plan(rpvs);
-  fftw_destroy_plan(fpvp);
-  fftw_destroy_plan(rpvp);
-
   fftw_free(rwork2d);
   fftw_free(cwork2d);
-  fftw_free(cworkv);
-  fftw_free(rworkv);
+
+  if(grid_nd == 3) {
+    fftw_destroy_plan(fpvc);
+    fftw_destroy_plan(rpvc);
+    fftw_destroy_plan(fpvs);
+    fftw_destroy_plan(rpvs);
+    fftw_destroy_plan(fpvp);
+    fftw_destroy_plan(rpvp);
+    fftw_free(cworkv);
+    fftw_free(rworkv);
+  }
 }
 
 void physical2spectral_2d(double *in, double complex *out) {
