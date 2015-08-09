@@ -73,6 +73,7 @@ int state_init() {
         q[idx2d]  = cos(4.0*M_PI*grid_2d_x[idx2d]);
         q[idx2d] *= cos(4.0*M_PI*grid_2d_y[idx2d]);
       }
+      state_physical2spectral();
       break;
 
     case STATE_INIT_TYPE_BOUSS3D_TEST1:
@@ -93,7 +94,6 @@ int state_init() {
         }
       }
       state_physical2spectral();
-      
       break;
 
     default:
