@@ -37,7 +37,7 @@ int state_init() {
 
   int status = 0;
 
-  double d;
+  double d, x, y;
 
   status = state_read_config();
   error_check(&status, "error in state_read_config\n");
@@ -70,8 +70,11 @@ int state_init() {
 
     case STATE_INIT_TYPE_PATCHES_2D:
       for(idx2d = 0; idx2d < grid_2d_nn_local*2; idx2d++) {
-        q[idx2d]  = cos(4.0*M_PI*grid_2d_x[idx2d]);
-        q[idx2d] *= cos(4.0*M_PI*grid_2d_y[idx2d]);
+        x = grid_2d_x[idx2d];
+        y = grid_2d_y[idx2d];
+        q[idx2d]  = cos(2.0*M_PI*(x+y));
+        q[idx2d] *= cos(2.0*M_PI*y);
+        q[idx2d] *= 0.01;
       }
       state_physical2spectral();
       break;
