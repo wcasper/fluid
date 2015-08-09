@@ -8,6 +8,7 @@
 #include "state.h"
 #include "model.h"
 #include "error.h"
+#include "time.h"
 
 int init() {
   int status = 0;
@@ -35,6 +36,11 @@ int init() {
   // initialize model
   status = model_init();
   error_check(&status, "error in model_init\n");
+  if(status) return status;
+
+  // initialize time step
+  status = time_init();
+  error_check(&status, "error in time_init\n");
   if(status) return status;
 
   return status;
