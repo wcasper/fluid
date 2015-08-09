@@ -129,10 +129,10 @@ void ins2d_adv(double complex *kadv, double complex *kq_in) {
     }
     else {
       if(fabs(kx) > 1e-14 || fabs(ky) > 1e-14) {
-        cwork1[idx2d] = -I*(kx*kq_in[idx2d])/(kx*kx + ky*ky);
-        cwork2[idx2d] =  I*ky*kq_in[idx2d];
-        cwork3[idx2d] =  I*kx*kq_in[idx2d];
-        cwork4[idx2d] = -I*(ky*kq_in[idx2d])/(kx*kx + ky*ky);
+        cwork1[idx2d] = I*(kx*kq_in[idx2d])/(kx*kx + ky*ky);
+        cwork2[idx2d] = -I*ky*kq_in[idx2d];
+        cwork3[idx2d] = -I*kx*kq_in[idx2d];
+        cwork4[idx2d] = I*(ky*kq_in[idx2d])/(kx*kx + ky*ky);
       }
       else {
         cwork1[idx2d] = 0.0 + 0.0*I;
