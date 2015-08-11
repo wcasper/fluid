@@ -7,5 +7,8 @@ int bouss3d_init();
 int bouss3d_finalize();
 
 double bouss3d_step_rk4_adaptive(double dt, double max_err_bnd);
+
+void bouss3d_diag_write();
+
 #endif
 

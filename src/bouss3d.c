@@ -19,6 +19,11 @@ double bouss3d_fcor     = 0.0;	// coriolis parameter
 double bouss3d_sigma;		// boundary relax scale
 double *bouss3d_b_freq;		// bouyancy frequency
 
+double bouss3d_diag_dke   = 0.0;  // change in kinetic energy
+double bouss3d_diag_pwork = 0.0;  // pressure work
+double bouss3d_diag_vwork = 0.0;  // friction work from viscosity
+double bouss3d_diag_bwork = 0.0;  // boundary work
+
 double *rwork1, *rwork2, *rwork3,
        *rwork4, *rwork5, *rwork6;
 
@@ -31,6 +36,8 @@ static void bouss3d_add_bouyancy_rhs(double complex *krhs, double complex *kstat
 static void bouss3d_p_adjust(double complex *kstate);
 static void bouss3d_topo_f(double complex *kstate, double dt);
 static void bouss3d_noslip_bottom(double *work, double dt);
+static double bouss3d_ke();
+
 static int bouss3d_read_config();
 
 int bouss3d_read_config() {
@@ -87,6 +94,7 @@ int bouss3d_init() {
   for(idx = 0; idx < grid_nz; idx++) {
     bf = grid_vd_z[idx];
     bf = 0.005*exp(-bf*bf);
+    bf = 0.001;
     bouss3d_b_freq[idx] = bf;
   }
 
@@ -127,7 +135,7 @@ int bouss3d_init() {
   topo_init();
 
   bouss3d_sigma = grid_dz*2.0;
-  bouss3d_topo_f(kq, 1.0);
+//  bouss3d_topo_f(kq, 1.0);
 
   return 0;
 }
@@ -291,6 +299,8 @@ void bouss3d_p_adjust(double complex *kstate) {
 void bouss3d_rhs(double complex *krhs, double complex *kstate) {
   ptrdiff_t idx3d;
 
+  double ke1, ke2;
+
   // calculate the advection
   bouss3d_adv(krhs, kstate);
 
@@ -298,6 +308,12 @@ void bouss3d_rhs(double complex *krhs, double complex *kstate) {
     krhs[grid_3d_nn_local*0 + idx3d] *= -1.0;
     krhs[grid_3d_nn_local*1 + idx3d] *= -1.0;
     krhs[grid_3d_nn_local*2 + idx3d] *= -1.0;
+  }
+
+  // apply coriolis force
+  for(idx3d = 0; idx3d < grid_3d_nn_local; idx3d++) {
+    krhs[grid_3d_nn_local*0 + idx3d] += bouss3d_fcor*kstate[grid_3d_nn_local*1 + idx3d];
+    krhs[grid_3d_nn_local*1 + idx3d] -= bouss3d_fcor*kstate[grid_3d_nn_local*0 + idx3d];
   }
 
   // apply bouyancy rhs forcing
@@ -308,7 +324,10 @@ void bouss3d_rhs(double complex *krhs, double complex *kstate) {
   //bouss3d_topo_f(krhs);
 
   // adjust velocity based on pressure forcing
+  ke1 = bouss3d_ke();
   bouss3d_p_adjust(krhs);
+  ke2 = bouss3d_ke();
+  bouss3d_diag_pwork += ke2-ke1;
 }
 
 void bouss3d_noslip_bottom(double *work, double dt) {
@@ -382,13 +401,13 @@ void bouss3d_add_bouyancy_rhs(double complex *krhs, double complex *kstate) {
   for(idx2d = 0; idx2d < grid_2d_nn_local*2; idx2d++) {
     for(m = 0; m < grid_nz; m++) {
       idx3d = idx2d + grid_2d_nn_local*2*m;
-      rwork6[idx3d] = -rwork6[idx3d]*bouss3d_b_freq[m];
+      rwork6[idx3d] = -rwork6[idx3d]*pow(bouss3d_b_freq[m],2);
     }
   }
   physical2spectral(rwork6,cwork6, GRID_VERTICAL_LAYOUT_SINE);
   for(idx3d = 0; idx3d < grid_3d_nn_local; idx3d++) {
     krhs[idx3d + grid_3d_nn_local*3] += cwork6[idx3d];
-    //krhs[idx3d + grid_3d_nn_local*2] += kstate[idx3d + grid_3d_nn_local*2];
+    krhs[idx3d + grid_3d_nn_local*2] += kstate[idx3d + grid_3d_nn_local*3];
   }
 }
 
@@ -400,10 +419,14 @@ double bouss3d_step_rk4_adaptive(double dt, double err_bnd_global) {
 
   double ksq;
 
+  double ke0, ke1, ke2;
+
   double err_max = 0.0,
          err, err_max_global;
 
-  double complex kerr;
+  double complex kerr, knorm;
+
+  double norm;
 
   const int runge_kutta_num = 6;
 
@@ -426,6 +449,9 @@ double bouss3d_step_rk4_adaptive(double dt, double err_bnd_global) {
 
   ks   = fftw_alloc_complex(grid_3d_nn_local*nq*runge_kutta_num);
   krhs = fftw_alloc_complex(grid_3d_nn_local*nq);
+
+  // calculate the kinetic energy
+  ke0 = bouss3d_ke();
 
   // calculate the runge kutta coefficients (ks)
   for(bi = 0; bi < runge_kutta_num; bi++) {
@@ -457,12 +483,20 @@ double bouss3d_step_rk4_adaptive(double dt, double err_bnd_global) {
       idx3d = idx2d + grid_2d_nn_local*m;
       // dealias
       if(!grid_2d_dealias_mask[idx2d] && 3*m < 2*grid_nz) {
-        for(n = 0; n < 3; n++) {
+        for(n = 0; n < 1; n++) {
           kerr = 0.0;
+          knorm = 0.0;
           for(bi = 0; bi < runge_kutta_num; bi++) {
             kerr += dt*(b[bi]-d[bi])*ks[grid_3d_nn_local*(bi*nq + n) + idx3d];
+            knorm += dt*b[bi]*ks[grid_3d_nn_local*(bi*nq + n) + idx3d];
           }
-          err = cabs(kerr);
+          norm = cabs(knorm);
+          if(norm > 1e-14) {
+            err = cabs(kerr)/norm;
+          }
+          else {
+            err = 0.0;
+          }
           if (err > err_max) err_max = err;
         }
       }
@@ -488,7 +522,8 @@ double bouss3d_step_rk4_adaptive(double dt, double err_bnd_global) {
     }
   }
 
-  // apply viscous damping (leapfrog of viscous forcing)
+  // apply viscous damping
+  ke1 = bouss3d_ke();
   for(idx2d = 0; idx2d < grid_2d_nn_local; idx2d++) {
     for(m = 0; m < grid_nz; m++) {
       idx3d = idx2d + grid_2d_nn_local*m;
@@ -509,9 +544,14 @@ double bouss3d_step_rk4_adaptive(double dt, double err_bnd_global) {
       }
     }
   }
+  ke2 = bouss3d_ke();
+  bouss3d_diag_vwork += ke2-ke1;
 
   // apply boundary adjustment
-  bouss3d_topo_f(kq, dt);
+  ke1 = bouss3d_ke();
+  //bouss3d_topo_f(kq, dt);
+  ke2 = bouss3d_ke();
+  bouss3d_diag_bwork += ke2-ke1;
 
   // dealias kq
   for(idx2d = 0; idx2d < grid_2d_nn_local; idx2d++) {
@@ -525,10 +565,56 @@ double bouss3d_step_rk4_adaptive(double dt, double err_bnd_global) {
     }
   }
 
+  ke2 = bouss3d_ke();
+  bouss3d_diag_dke = ke2-ke0;
+
   fftw_free(ks);
   fftw_free(krhs);
   return err_max_global;
 }
 
+double bouss3d_ke() {
+  int idx2d, idx3d, m;
 
+  double u,v,w,ke,ke_tot,ke_tot_g;
+
+  ke_tot   = 0.0;
+  ke_tot_g = 0.0;
+  for(idx2d = 0; idx2d < grid_2d_nn_local; idx2d++) {
+    if(!grid_2d_dealias_mask[idx2d]) {
+      for(m = 0; m < (grid_nz*2)/3; m++) {
+        idx3d = idx2d + grid_2d_nn_local*m;
+
+        u = cabs(kq[grid_3d_nn_local*0 + idx3d]);
+        v = cabs(kq[grid_3d_nn_local*1 + idx3d]);
+        w = cabs(kq[grid_3d_nn_local*2 + idx3d]);
+
+        ke = 0.5*(u*u + v*v + w*w);
+        ke_tot += ke;
+      }
+    }
+  }
+
+  MPI_Reduce(&ke_tot, &ke_tot_g,  1,
+             MPI_DOUBLE, MPI_SUM, master_task, MPI_COMM_WORLD);
+
+  return ke_tot_g;
+}
+
+void bouss3d_diag_write() {
+  double ke_total = bouss3d_ke();
+
+  if(my_task == master_task) {
+    printf("TOTAL KE: %1.16lf\n", ke_total);
+    printf("DELTA KE: %1.16lf\n", bouss3d_diag_dke);
+    printf("PRES WRK: %1.16lf\n", bouss3d_diag_pwork);
+    printf("FRIC WRK: %1.16lf\n", bouss3d_diag_vwork);
+    printf("BDRY WRK: %1.16lf\n", bouss3d_diag_bwork);
+  }
+
+  bouss3d_diag_dke = 0.0;
+  bouss3d_diag_pwork = 0.0;
+  bouss3d_diag_vwork = 0.0;
+  bouss3d_diag_bwork = 0.0;
+}
 
