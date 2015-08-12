@@ -37,7 +37,7 @@ int state_init() {
 
   int status = 0;
 
-  double d, x, y;
+  double x, y, z;
 
   status = state_read_config();
   error_check(&status, "error in state_read_config\n");
@@ -87,13 +87,24 @@ int state_init() {
 
       for(idx2d = 0; idx2d < grid_2d_nn_local*2; idx2d++) {
         for(m = 0; m < grid_nz; m++) {
+          x = grid_2d_x[idx2d];
+          y = grid_2d_y[idx2d];
+          z = grid_vd_z[m];
           idx3d = idx2d + grid_2d_nn_local*2*m;
-          q[grid_3d_nn_local*2*0 + idx3d] = 0.1;
-          d  = pow((grid_2d_x[idx2d]/grid_lx - 0.5),2);
-          d += pow((grid_2d_y[idx2d]/grid_ly - 0.5),2);
-          d += pow((grid_vd_z[m]/grid_lz - 0.5),2);
-          d *= 10.0;
-          //q[grid_3d_nn_local*2*3 + idx3d] = 0.1*exp(-d*d);
+          q[grid_3d_nn_local*2*0 + idx3d] = sin(4.0*M_PI*y/grid_ly)*cos(4.0*M_PI*z/grid_lz)*(grid_lz/grid_ly)*1.0e1;
+          q[grid_3d_nn_local*2*1 + idx3d] = sin(2.0*M_PI*x/grid_lx)*cos(2.0*M_PI*z/grid_lz)*(-grid_lz/grid_lx)*1.0e2;
+          q[grid_3d_nn_local*2*3 + idx3d] = cos(2.0*M_PI*x/grid_lx)*sin(2.0*M_PI*z/grid_lz)*1.0e-2;
+          q[grid_3d_nn_local*2*3 + idx3d]+= 0.001*cos(4.0*M_PI*y/grid_ly)*sin(4.0*M_PI*z/grid_lz);
+          //q[grid_3d_nn_local*2*0 + idx3d] = sin(2.0*M_PI*y/grid_ly)*cos(2.0*M_PI*z/grid_lz)*(grid_lz/grid_ly)*1.0e2;
+          //q[grid_3d_nn_local*2*3 + idx3d] = 0.01*cos(2.0*M_PI*y/grid_ly)*sin(2.0*M_PI*z/grid_lz);
+          //q[grid_3d_nn_local*2*1 + idx3d] = sin(2.0*M_PI*x/grid_lx)*cos(2.0*M_PI*z/grid_lz)*(-grid_lz/grid_lx)*1.0e2;
+          //q[grid_3d_nn_local*2*3 + idx3d] = 0.01*cos(2.0*M_PI*x/grid_lx)*sin(2.0*M_PI*z/grid_lz);
+          /*
+          q[grid_3d_nn_local*2*0 + idx3d]*= 1e-1;
+          q[grid_3d_nn_local*2*1 + idx3d]*= 1e-1;
+          q[grid_3d_nn_local*2*2 + idx3d]*= 1e-1;
+          q[grid_3d_nn_local*2*3 + idx3d]*= 1e-1;
+          */
         }
       }
       state_physical2spectral();
@@ -110,7 +121,10 @@ int state_init() {
 int state_physical2spectral() {
   ptrdiff_t n,idx;
 
-  memcpy(rwork,q,grid_3d_nn_local*nq*16);
+  //memcpy(rwork,q,grid_3d_nn_local*nq*2*sizeof(double));
+  for(idx = 0; idx < grid_3d_nn_local*2*nq; idx++) {
+    rwork[idx] = q[idx];
+  }
 
   for(n = 0; n < nq; n++) {
     idx = grid_3d_nn_local*n;
@@ -123,7 +137,10 @@ int state_physical2spectral() {
 int state_spectral2physical() {
   ptrdiff_t n, idx;
 
-  memcpy(cwork,kq,grid_3d_nn_local*nq*16);
+  //memcpy(cwork,kq,grid_3d_nn_local*nq*sizeof(double complex));
+  for(idx = 0; idx < grid_3d_nn_local*nq; idx++) {
+    cwork[idx] = kq[idx];
+  }
 
   for(n = 0; n < nq; n++) {
     idx = grid_3d_nn_local*n;
