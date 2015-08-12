@@ -185,8 +185,12 @@ int grid_init_layout_2d() {
         grid_2d_dealias_mask[idx] = true;
       }
 
-      if((2*ki)%grid_nx == 0 &&
-         (2*kj)%grid_ny == 0) {
+      if((2*abs(ki))%grid_nx == 0 &&
+         (2*abs(kj))%grid_ny == 0) {
+        grid_2d_kx[idx] = 0.0;
+        grid_2d_ky[idx] = 0.0;
+      }
+      else if(2*j >= grid_ny) {
         grid_2d_kx[idx] = 0.0;
         grid_2d_ky[idx] = 0.0;
       }
@@ -244,7 +248,7 @@ int grid_init_layout_3d() {
   grid_vd_kze = calloc(grid_nz+1, sizeof(double));
 
   for(m = 0; m < grid_nz; m++) {
-    grid_vd_z[m]  = (1.0 - (m+0.5)/(double)grid_nz)*grid_lz;
+    grid_vd_z[m]  = ((m+0.5)/(double)grid_nz)*grid_lz;
     grid_vd_kzo[m] =  M_PI*(m+1)/grid_lz;
     grid_vd_kze[m] = -M_PI*m/grid_lz;
   }
