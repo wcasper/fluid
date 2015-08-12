@@ -8,6 +8,7 @@
 #include "ins2d.h"
 #include "bouss3d.h"
 #include "error.h"
+#include "diag.h"
 
 model_type_t model_type = MODEL_INS2D;
 
@@ -28,6 +29,7 @@ int model_init() {
       break;
     case MODEL_BOUSS3D:
       time_step_set(bouss3d_step_rk4_adaptive);
+      diag_write_set(bouss3d_diag_write);
       status = bouss3d_init();
       error_check(&status,"error in bouss3d_init\n");
       break;
