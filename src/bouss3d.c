@@ -628,7 +628,7 @@ double bouss3d_ke() {
         w = cabs(kq[grid_3d_nn_local*2 + idx3d]);
 
         ke = 0.5*(u*u + v*v + w*w);
-        ke_tot += ke;
+        ke_tot += ke*grid_2d_wgt[idx2d];
       }
     }
   }
