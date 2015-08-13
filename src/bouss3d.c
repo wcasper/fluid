@@ -301,6 +301,8 @@ void bouss3d_p_adjust(double complex *kstate) {
 void bouss3d_rhs(double complex *krhs, double complex *kstate) {
   ptrdiff_t idx2d,idx3d,m,n;
 
+  double complex ku, kv, kw, kb;
+
   // calculate the advection
   bouss3d_adv(krhs, kstate);
 
@@ -329,7 +331,12 @@ void bouss3d_rhs(double complex *krhs, double complex *kstate) {
           krhs[grid_3d_nn_local*n + idx3d] = 0.0;
         }
         else {
-          krhs[grid_3d_nn_local*n + idx3d] *= -1.0;
+          if(cabs(krhs[grid_3d_nn_local*n + idx3d]) < 1e-14) {
+            krhs[grid_3d_nn_local*n + idx3d] = 0.0;
+          }
+          else {
+            krhs[grid_3d_nn_local*n + idx3d] *= -1.0;
+          }
         }
       }
     }
@@ -337,16 +344,28 @@ void bouss3d_rhs(double complex *krhs, double complex *kstate) {
 
   // apply coriolis force
   for(idx3d = 0; idx3d < grid_3d_nn_local; idx3d++) {
-    krhs[grid_3d_nn_local*0 + idx3d] += bouss3d_fcor*kstate[grid_3d_nn_local*1 + idx3d];
-    krhs[grid_3d_nn_local*1 + idx3d] -= bouss3d_fcor*kstate[grid_3d_nn_local*0 + idx3d];
+    ku = kstate[grid_3d_nn_local*0 + idx3d];
+    kv = kstate[grid_3d_nn_local*1 + idx3d];
+    if(cabs(ku) > 1e-14) {
+      krhs[grid_3d_nn_local*1 + idx3d] -= ku*bouss3d_fcor;
+    }
+    if(cabs(kv) > 1e-14) {
+      krhs[grid_3d_nn_local*0 + idx3d] += kv*bouss3d_fcor;
+    }
   }
 
   // apply bouyancy rhs forcing
   // affects wvel and bouy terms
   //bouss3d_add_bouyancy_rhs(krhs,kstate);
   for(idx3d = 0; idx3d < grid_3d_nn_local; idx3d++) {
-    krhs[grid_3d_nn_local*2 + idx3d] += kstate[grid_3d_nn_local*3 + idx3d];
-    krhs[grid_3d_nn_local*3 + idx3d] -= kstate[grid_3d_nn_local*2 + idx3d]*5e-5;
+    kw = kstate[grid_3d_nn_local*2 + idx3d];
+    kb = kstate[grid_3d_nn_local*3 + idx3d];
+    if(cabs(kb) > 1e-14) {
+      krhs[grid_3d_nn_local*2 + idx3d] += kb;
+    }
+    if(cabs(kw) > 1e-14) {
+      krhs[grid_3d_nn_local*3 + idx3d] -= kw*5e-5;
+    }
   }
 
   // adjust velocity based on pressure forcing
@@ -512,7 +531,7 @@ double bouss3d_step_rk4_adaptive(double dt, double err_bnd_global) {
             knorm += dt*b[bi]*ks[grid_3d_nn_local*(bi*nq + n) + idx3d];
           }
           norm = cabs(knorm);
-          norm = (norm < 1e-15) ? 1e-15 : norm;
+          norm = (norm < 1e-12) ? 1e-12 : norm;
           err = cabs(kerr)/norm;
           if (err > err_max) err_max = err;
         }
@@ -533,8 +552,10 @@ double bouss3d_step_rk4_adaptive(double dt, double err_bnd_global) {
   for(idx3d = 0; idx3d < grid_3d_nn_local; idx3d++) {
     for(bi = 0; bi < runge_kutta_num; bi++) {
       for(n = 0; n < nq; n++) {
-        kq[grid_3d_nn_local*n + idx3d]
-          += dt*b[bi]*ks[grid_3d_nn_local*(bi*nq + n) + idx3d];
+        if(cabs(ks[grid_3d_nn_local*(bi*nq + n) + idx3d]) > 1e-14) {
+          kq[grid_3d_nn_local*n + idx3d]
+            += dt*b[bi]*ks[grid_3d_nn_local*(bi*nq + n) + idx3d];
+        }
       }
     }
   }
