@@ -130,13 +130,12 @@ int time_step() {
 
     if(time_step_dt > time_dt) time_step_dt = time_dt;
   }
+
   umax = time_getmax(&kq[grid_3d_nn_local*0]);
   vmax = time_getmax(&kq[grid_3d_nn_local*1]);
   wmax = time_getmax(&kq[grid_3d_nn_local*2]);
-
   bmax = time_getmax(&kq[grid_3d_nn_local*3]);
   printf("factor = %1.16lf, new dt = %lf, umax = %1.16lf, vmax = %1.16lf, wmax = %1.16lf, bmax = %1.16lf\n", factor, dt, umax, vmax, wmax, bmax);
-
   diag_write();
 
   return 0;

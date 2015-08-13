@@ -32,12 +32,12 @@ int main(int argc, char *argv[]) {
 
   begin = clock();
 
-  for(i  = 0; i < 1; i++) {
+  for(i  = 0; i < 1000; i++) {
     if(i%1 == 0) {
       sprintf(file_name,"out/restart_%1.1lf.bin",time_model);
-      // state_write(file_name);
+      state_write(file_name);
       sprintf(file_name,"out/vort_%1.1lf.bin",time_model);
-      // state_write_vort(file_name);
+      state_write_vort(file_name);
     }
     time_step();
   }
@@ -49,9 +49,9 @@ int main(int argc, char *argv[]) {
 
 
   sprintf(file_name,"out/restart_%1.1lf.bin",time_model);
-  // state_write(file_name);
+  state_write(file_name);
   sprintf(file_name,"out/vort_%1.1lf.bin",time_model);
-  // state_write_vort(file_name);
+  state_write_vort(file_name);
 
   finalize();
 
