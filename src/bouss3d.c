@@ -457,7 +457,7 @@ double bouss3d_step_rk4_adaptive(double dt, double err_bnd_global) {
 
   double complex *ks, *krhs;
 
-  double ksq;
+  double ksq_2d, ksq_vd;
 
   double ke0, ke1, ke2;
 
@@ -563,21 +563,22 @@ double bouss3d_step_rk4_adaptive(double dt, double err_bnd_global) {
   // apply viscous damping
   ke1 = bouss3d_ke();
   for(idx2d = 0; idx2d < grid_2d_nn_local; idx2d++) {
+    ksq_2d = grid_2d_kx[idx2d]*grid_2d_kx[idx2d]
+           + grid_2d_ky[idx2d]*grid_2d_ky[idx2d];
     for(m = 0; m < grid_nz; m++) {
       idx3d = idx2d + grid_2d_nn_local*m;
 
+
       for(n = 0; n < 3; n++) {
-        ksq = grid_2d_kx[idx2d]*grid_2d_kx[idx2d]
-            + grid_2d_ky[idx2d]*grid_2d_ky[idx2d];
         if(state_layout[n] == GRID_VERTICAL_LAYOUT_COSINE) {
-          ksq += grid_vd_kzo[m]*grid_vd_kzo[m];
-          //kq[grid_3d_nn_local*n + idx3d] /= (1.0 + bouss3d_kvisc*dt*pow(ksq,4));
-          kq[grid_3d_nn_local*n + idx3d] *= exp(-bouss3d_kvisc*dt*pow(ksq,4));
+          ksq_vd = grid_vd_kzo[m]*grid_vd_kzo[m];
+          kq[grid_3d_nn_local*n + idx3d] *= exp(-pow(ksq_2d/(0.9*grid_2d_ksq_max),4)
+                                                -pow(ksq_vd/(0.9*grid_vd_ksq_max),4));
         }
         else {
-          ksq += grid_vd_kze[m]*grid_vd_kze[m];
-          //kq[grid_3d_nn_local*n + idx3d] /= (1.0 + bouss3d_kvisc*dt*pow(ksq,4));
-          kq[grid_3d_nn_local*n + idx3d] *= exp(-bouss3d_kvisc*dt*pow(ksq,4));
+          ksq_vd = grid_vd_kze[m]*grid_vd_kze[m];
+          kq[grid_3d_nn_local*n + idx3d] *= exp(-pow(ksq_2d/(0.9*grid_2d_ksq_max),4)
+                                                -pow(ksq_vd/(0.9*grid_vd_ksq_max),4));
         }
       }
     }
