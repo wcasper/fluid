@@ -68,6 +68,7 @@ int state_init() {
     }
   }
 
+      MPI_Barrier(MPI_COMM_WORLD);
   // Initialize spectral data
   switch(state_init_type) {
     case STATE_INIT_TYPE_RESTART:
@@ -331,6 +332,7 @@ int state_read_config() {
     if(file_name) {
       len = strlen(file_name)+1;
       state_restart_file_name = calloc(len,sizeof(char));
+      strcpy(state_restart_file_name,file_name);
     }
     iniparser_freedict(dict);
   }
