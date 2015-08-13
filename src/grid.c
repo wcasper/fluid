@@ -176,6 +176,8 @@ int grid_init_layout_2d() {
       ki = grid_2d_n0_local + i;
       kj = j;
       if(2*ki > grid_nx) ki -= grid_nx;
+      ki *= -1;
+      kj *= -1;
 
       grid_2d_ki[idx] = ki;
       grid_2d_kj[idx] = kj;

@@ -172,7 +172,7 @@ void ins3d_adv(double complex *kadv, double complex *kstate) {
       for(m = 0; m < grid_nz; m++) {
         idx3d = idx2d + grid_2d_nn_local*m;
         kk = (2*m < grid_nz) ? m : m-grid_nz;
-        kz = -2.0*M_PI*kk/grid_lz;
+        kz = 2.0*M_PI*kk/grid_lz;
 
         // dealias
         if(grid_2d_dealias_mask[idx2d] || 3*abs(kk) >= grid_nz) {
@@ -181,9 +181,9 @@ void ins3d_adv(double complex *kadv, double complex *kstate) {
           cwork3[idx3d] = 0.0 + 0.0*I;
         }
         else {
-          cwork1[idx3d] = -I*kx*kstate[idx3d + grid_3d_nn_local*n];
-          cwork2[idx3d] = -I*ky*kstate[idx3d + grid_3d_nn_local*n];
-          cwork3[idx3d] = -I*kz*kstate[idx3d + grid_3d_nn_local*n];
+          cwork1[idx3d] = I*kx*kstate[idx3d + grid_3d_nn_local*n];
+          cwork2[idx3d] = I*ky*kstate[idx3d + grid_3d_nn_local*n];
+          cwork3[idx3d] = I*kz*kstate[idx3d + grid_3d_nn_local*n];
         }
       }
     }
@@ -219,19 +219,19 @@ void ins3d_p_adjust(double complex *kstate) {
         idx3d = idx2d + grid_2d_nn_local*m;
         kx = grid_2d_kx[idx2d];
         ky = grid_2d_ky[idx2d];
-        kz = -2.0*M_PI*kk/grid_lz;
+        kz = 2.0*M_PI*kk/grid_lz;
         kp = 0.0 + 0.0*I;
         if(fabs(kx) > 1e-14 ||
            fabs(ky) > 1e-14 || m > 0) {
-          kp = kstate[grid_3d_nn_local*0 + idx3d]*(-kx*I)
-             + kstate[grid_3d_nn_local*1 + idx3d]*(-ky*I)
-             + kstate[grid_3d_nn_local*2 + idx3d]*(-kz*I);
+          kp = kstate[grid_3d_nn_local*0 + idx3d]*kx*I
+             + kstate[grid_3d_nn_local*1 + idx3d]*ky*I
+             + kstate[grid_3d_nn_local*2 + idx3d]*kz*I;
           kp/= -kx*kx - ky*ky - kz*kz;
         }
 
-        kstate[grid_3d_nn_local*0 + idx3d] -= -I*kx*kp;
-        kstate[grid_3d_nn_local*1 + idx3d] -= -I*ky*kp;
-        kstate[grid_3d_nn_local*2 + idx3d] -= -I*kz*kp;
+        kstate[grid_3d_nn_local*0 + idx3d] -= I*kx*kp;
+        kstate[grid_3d_nn_local*1 + idx3d] -= I*ky*kp;
+        kstate[grid_3d_nn_local*2 + idx3d] -= I*kz*kp;
       }
     }
   }

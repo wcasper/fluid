@@ -205,8 +205,8 @@ void bouss3d_adv(double complex *kadv, double complex *kstate) {
           cwork3[idx3d] = 0.0 + 0.0*I;
         }
         else {
-          cwork1[idx3d] = -I*kx*kstate[idx3d + grid_3d_nn_local*n];
-          cwork2[idx3d] = -I*ky*kstate[idx3d + grid_3d_nn_local*n];
+          cwork1[idx3d] = I*kx*kstate[idx3d + grid_3d_nn_local*n];
+          cwork2[idx3d] = I*ky*kstate[idx3d + grid_3d_nn_local*n];
           if(state_layout[n] == GRID_VERTICAL_LAYOUT_COSINE) {
             //shift down
             if(m >= grid_nz-1) {
@@ -260,7 +260,7 @@ void bouss3d_adv(double complex *kadv, double complex *kstate) {
 void bouss3d_p_adjust(double complex *kstate) {
   ptrdiff_t idx2d, idx3d, m;
 
-  double kx, ky, kze, kzo;
+  double kx, ky, kz;
 
   double complex kp;
 
@@ -274,24 +274,23 @@ void bouss3d_p_adjust(double complex *kstate) {
         kp = 0.0 + 0.0*I;
         if(fabs(kx) > 1e-14 ||
            fabs(ky) > 1e-14 || m > 0) {
-          kp = kstate[grid_3d_nn_local*0 + idx3d]*(-kx*I)
-             + kstate[grid_3d_nn_local*1 + idx3d]*(-ky*I);
+          kp = kstate[grid_3d_nn_local*0 + idx3d]*kx*I
+             + kstate[grid_3d_nn_local*1 + idx3d]*ky*I;
           if(m > 0) {
-            kzo = grid_vd_kzo[m-1];
-            kze = grid_vd_kze[m];
-            kp += kstate[grid_3d_nn_local*2 - grid_2d_nn_local + idx3d]*(-kze);
-            kp/= -kx*kx - ky*ky - kze*kze;
+            kz = grid_vd_kze[m];
+            kp += kstate[grid_3d_nn_local*2 - grid_2d_nn_local + idx3d]*(-kz);
+            kp/= -kx*kx - ky*ky - kz*kz;
           }
           else {
             kp/= -kx*kx - ky*ky;
           }
         }
 
-        kstate[grid_3d_nn_local*0 + idx3d] -= -I*kx*kp;
-        kstate[grid_3d_nn_local*1 + idx3d] -= -I*ky*kp;
+        kstate[grid_3d_nn_local*0 + idx3d] -= I*kx*kp;
+        kstate[grid_3d_nn_local*1 + idx3d] -= I*ky*kp;
         if(m > 0) {
-          kze = grid_vd_kze[m];
-          kstate[grid_3d_nn_local*2 - grid_2d_nn_local + idx3d] -= kze*kp;
+          kz = grid_vd_kze[m];
+          kstate[grid_3d_nn_local*2 - grid_2d_nn_local + idx3d] -= kz*kp;
         }
       }
     }
@@ -364,7 +363,7 @@ void bouss3d_rhs(double complex *krhs, double complex *kstate) {
       krhs[grid_3d_nn_local*2 + idx3d] += kb;
     }
     if(cabs(kw) > 1e-14) {
-      krhs[grid_3d_nn_local*3 + idx3d] -= kw*5e-5;
+      krhs[grid_3d_nn_local*3 + idx3d] -= kw*1e-6;
     }
   }
 
