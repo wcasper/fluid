@@ -111,10 +111,10 @@ int state_init() {
           y = grid_2d_y[idx2d];
           z = grid_vd_z[m];
           idx3d = idx2d + grid_2d_nn_local*2*m;
-          q[grid_3d_nn_local*2*0 + idx3d] = sin(4.0*M_PI*y/grid_ly)*cos(4.0*M_PI*z/grid_lz)*(grid_lz/grid_ly)*1.0e1;
-          q[grid_3d_nn_local*2*1 + idx3d] = sin(2.0*M_PI*x/grid_lx)*cos(2.0*M_PI*z/grid_lz)*(-grid_lz/grid_lx)*1.0e2;
-          q[grid_3d_nn_local*2*3 + idx3d] = cos(2.0*M_PI*x/grid_lx)*sin(2.0*M_PI*z/grid_lz)*1.0e-2;
-          q[grid_3d_nn_local*2*3 + idx3d]+= 0.0001*cos(4.0*M_PI*y/grid_ly)*sin(4.0*M_PI*z/grid_lz);
+          q[grid_3d_nn_local*2*0 + idx3d] = sin(4.0*M_PI*y/grid_ly)*cos(4.0*M_PI*z/grid_lz)*(grid_lz/grid_ly)*1.0e-1;
+          q[grid_3d_nn_local*2*1 + idx3d] = sin(2.0*M_PI*x/grid_lx)*cos(2.0*M_PI*z/grid_lz)*(-grid_lz/grid_lx)*1.0e0;
+          q[grid_3d_nn_local*2*3 + idx3d] = cos(2.0*M_PI*x/grid_lx)*sin(2.0*M_PI*z/grid_lz)*1.0e-4;
+          q[grid_3d_nn_local*2*3 + idx3d]+= cos(4.0*M_PI*y/grid_ly)*sin(4.0*M_PI*z/grid_lz)*1.0e-5;
           //q[grid_3d_nn_local*2*0 + idx3d] = sin(2.0*M_PI*y/grid_ly)*cos(2.0*M_PI*z/grid_lz)*(grid_lz/grid_ly)*1.0e2;
           //q[grid_3d_nn_local*2*3 + idx3d] = 0.01*cos(2.0*M_PI*y/grid_ly)*sin(2.0*M_PI*z/grid_lz);
           //q[grid_3d_nn_local*2*1 + idx3d] = sin(2.0*M_PI*x/grid_lx)*cos(2.0*M_PI*z/grid_lz)*(-grid_lz/grid_lx)*1.0e2;
@@ -249,8 +249,8 @@ int state_write(char *ofile_name) {
       for(n = 0; n < nq; n++) {
         foo = kq[idx3d + grid_3d_nn_local*n];
         if(cabs(foo) > 1e-12) {
-          printf("hi!! %i %i %i %i ", grid_2d_i[idx2d], grid_2d_j[idx2d], m, n);
-          printf("%1.16lf %1.16lf\n", creal(foo), cimag(foo));
+          //printf("hi!! %i %i %i %i ", grid_2d_ki[idx2d], grid_2d_kj[idx2d], m, n);
+          //printf("%1.16lf %1.16lf\n", creal(foo), cimag(foo));
         }
       }
     }
@@ -336,8 +336,7 @@ int state_read_config() {
   }
 
   MPI_Bcast(&nq,1,MPI_INT,master_task,MPI_COMM_WORLD);
-
-  error_check(&status, "bad nd value in config file\n");
+  MPI_Bcast(&state_init_type,1,MPI_INT,master_task,MPI_COMM_WORLD);
 
   return status;
 }
@@ -352,12 +351,14 @@ int state_write_vort(char *ofile_name) {
 
   double *vort_global;
 
+  if(grid_nd < 2) return 1;
+
   for(idx2d = 0; idx2d < grid_2d_nn_local; idx2d++) {
     for(m = 0; m < grid_nz; m++) {
       idx3d = idx2d + grid_2d_nn_local*m;
 
-      state_kvort[idx3d]  = kq[grid_3d_nn_local*1 + idx3d]*grid_2d_kx[idx2d]*(-I);
-      state_kvort[idx3d] -= kq[grid_3d_nn_local*0 + idx3d]*grid_2d_ky[idx2d]*(-I);
+      state_kvort[idx3d]  = kq[grid_3d_nn_local*1 + idx3d]*grid_2d_kx[idx2d]*I;
+      state_kvort[idx3d] -= kq[grid_3d_nn_local*0 + idx3d]*grid_2d_ky[idx2d]*I;
     }
   }
   spectral2physical(state_kvort,state_vort,state_layout[0]);
