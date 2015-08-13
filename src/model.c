@@ -83,9 +83,9 @@ int model_read_config() {
   if(my_task == master_task) {
     // read in model initialization data
     type = iniparser_getint(dict, "model:type", model_type);
+    iniparser_freedict(dict);
   }
 
-  iniparser_freedict(dict);
 
   MPI_Bcast(&type,1,MPI_INT,master_task,MPI_COMM_WORLD);
 

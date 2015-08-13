@@ -2,7 +2,7 @@ TARGET = fluid
 LIBS = -lm -L/usr/projects/climate/wcasper/lib -lfftw3_mpi -lfftw3 -liniparser
 INCLUDES = -I/usr/projects/climate/wcasper/include
 CC = mpicc
-CFLAGS = -g -Wall -Wextra -w3
+CFLAGS = -g -Wall -Wextra 
 #CFLAGS = -g -Wall -Wextra
 
 .PHONY: default all clean
