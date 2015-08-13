@@ -70,7 +70,7 @@ int time_init() {
 double time_getmax(double complex *kfield) {
   int idx2d, idx3d, m;
 
-  double u, umax;
+  double u, umax, umax_global;
 
   umax = 0.0;
   for(idx2d = 0; idx2d < grid_2d_nn_local; idx2d++) {
@@ -85,7 +85,9 @@ double time_getmax(double complex *kfield) {
     }
   }
 
-  return umax;
+  MPI_Reduce(&umax,  &umax_global,  1,
+             MPI_DOUBLE, MPI_MAX, master_task, MPI_COMM_WORLD);
+  return umax_global;
 }
 
 
@@ -119,6 +121,14 @@ int time_step() {
         dt *= 0.9*pow(factor,-0.25);
         time_step_dt = dt;
       }
+
+      umax = time_getmax(&kq[grid_3d_nn_local*0]);
+      vmax = time_getmax(&kq[grid_3d_nn_local*1]);
+      wmax = time_getmax(&kq[grid_3d_nn_local*2]);
+      bmax = time_getmax(&kq[grid_3d_nn_local*3]);
+      if(my_task == master_task) {
+        printf("factor = %1.16lf, new dt = %lf, umax = %1.16lf, vmax = %1.16lf, wmax = %1.16lf, bmax = %1.16lf\n", factor, dt, umax, vmax, wmax, bmax);
+      }
     }
     time_model += dt;
     if(factor > 1.89e-4 && !is_boundary_step) {
@@ -130,12 +140,6 @@ int time_step() {
 
     if(time_step_dt > time_dt) time_step_dt = time_dt;
   }
-
-  umax = time_getmax(&kq[grid_3d_nn_local*0]);
-  vmax = time_getmax(&kq[grid_3d_nn_local*1]);
-  wmax = time_getmax(&kq[grid_3d_nn_local*2]);
-  bmax = time_getmax(&kq[grid_3d_nn_local*3]);
-  printf("factor = %1.16lf, new dt = %lf, umax = %1.16lf, vmax = %1.16lf, wmax = %1.16lf, bmax = %1.16lf\n", factor, dt, umax, vmax, wmax, bmax);
   diag_write();
 
   return 0;
