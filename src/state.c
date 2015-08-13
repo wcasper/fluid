@@ -111,7 +111,7 @@ int state_init() {
           y = grid_2d_y[idx2d];
           z = grid_vd_z[m];
           idx3d = idx2d + grid_2d_nn_local*2*m;
-          q[grid_3d_nn_local*2*0 + idx3d] = sin(4.0*M_PI*y/grid_ly)*cos(4.0*M_PI*z/grid_lz)*(grid_lz/grid_ly);
+          q[grid_3d_nn_local*2*0 + idx3d] = sin(4.0*M_PI*y/grid_ly)*cos(4.0*M_PI*z/grid_lz)*(grid_lz/grid_ly)*1.0e1;
           q[grid_3d_nn_local*2*1 + idx3d] = sin(2.0*M_PI*x/grid_lx)*cos(2.0*M_PI*z/grid_lz)*(-grid_lz/grid_lx)*1.0e2;
           q[grid_3d_nn_local*2*3 + idx3d] = cos(2.0*M_PI*x/grid_lx)*sin(2.0*M_PI*z/grid_lz)*1.0e-2;
           q[grid_3d_nn_local*2*3 + idx3d]+= 0.0001*cos(4.0*M_PI*y/grid_ly)*sin(4.0*M_PI*z/grid_lz);
