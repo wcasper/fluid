@@ -30,6 +30,9 @@ extern double *grid_2d_ky;
 extern double *grid_vd_kzo;
 extern double *grid_vd_kze;
 
+extern double grid_2d_ksq_max;
+extern double grid_vd_ksq_max;
+
 extern double *grid_2d_x;
 extern double *grid_2d_y;
 extern double *grid_vd_z;

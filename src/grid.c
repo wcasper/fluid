@@ -46,6 +46,9 @@ int *grid_2d_j = NULL;
 int *grid_2d_ki = NULL;
 int *grid_2d_kj = NULL;
 
+double grid_2d_ksq_max = 0.0;
+double grid_vd_ksq_max = 0.0;
+
 double *grid_2d_wgt	= NULL;
 
 bool *grid_2d_dealias_mask = NULL;
@@ -209,6 +212,9 @@ int grid_init_layout_2d() {
     }
   }
 
+  grid_2d_ksq_max  = pow(2.0*M_PI*grid_nx*(1./3.)/grid_lx,2.0);
+  grid_2d_ksq_max += pow(2.0*M_PI*grid_ny*(1./3.)/grid_ly,2.0);
+
   for(i = 0; i < grid_2d_nx_local; i++) {
     for(j = 0; j < (grid_ny/2 +1)*2; j++) {
       idx = i*(grid_ny/2 + 1)*2 + j;
@@ -246,6 +252,8 @@ int grid_init_layout_3d() {
   grid_vd_z  = calloc(grid_nz, sizeof(double));
   grid_vd_kzo = calloc(grid_nz+1, sizeof(double));
   grid_vd_kze = calloc(grid_nz+1, sizeof(double));
+
+  grid_vd_ksq_max  = pow(1.0*M_PI*grid_nz*(2./3.)/grid_lz,2.0);
 
   for(m = 0; m < grid_nz; m++) {
     grid_vd_z[m]  = ((m+0.5)/(double)grid_nz)*grid_lz;
