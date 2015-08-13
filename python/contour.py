@@ -13,7 +13,8 @@ nz = 32;
 
 # read in density
 t = int(sys.argv[1]);
-u = restart.restart_read("/scratch/wcasper/out/restart_%i.0.bin" % t, 1, [nz,ny,nx]);
+#u = restart.restart_read("/scratch/wcasper/out/restart_%i.0.bin" % t, 3, [nz,ny,nx]);
+u = restart.restart_read("/scratch/wcasper/out/vort_%i.0.bin" % t, 0, [nz,ny,nx]);
 #u = restart.restart_read("/scratch/wcasper/out08112015/restart_%i.0.bin" % t, 1, [nz,ny,nx]);
 #u = restart.restart_read("../src/advection.bin", 3, [nz,ny,nx]);
 #u = restart.restart_read("../src/advection.bin", 0, [nz,ny,nx]);
@@ -46,8 +47,8 @@ cmap = plt.cm.get_cmap("winter")
 cmap.set_under("magenta")
 cmap.set_over("yellow")
 levels = numpy.arange(min,max,(max-min)*.001);
-plt.contourf(x,z[:],u[:,0,:], levels, extend='both')
-#plt.contourf(x,y,u[6,:,:], levels, extend='both')
+#plt.contourf(x,z[:],u[:,0,:], levels, extend='both')
+plt.contourf(x,y,numpy.transpose(u[:,:,0]), levels, extend='both')
 plt.colorbar();
 #plt.plot(umean,z, "ro");
 #plt.plot(x,land, "r-");
