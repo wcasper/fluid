@@ -11,7 +11,7 @@
 #include "diag.h"
 #include "state.h"
 
-double time = 0.0;
+double time_model = 0.0;
 double time_dt = 1e-0;
 double time_step_dt = 1e-3;
 double time_err_max = 1e-8;
@@ -42,14 +42,14 @@ int time_read_config() {
   
   if(my_task == master_task) {
     // read in grid initialization data
-    time = iniparser_getdouble(dict, "time:t",  time);
+    time_model = iniparser_getdouble(dict, "time:t",  time_model);
     time_dt = iniparser_getdouble(dict, "time:dt", 1.0);
     time_step_dt = iniparser_getdouble(dict, "time:dt0", 1e-3);
     time_err_max = iniparser_getdouble(dict, "time:err_max", 1e-8);
     iniparser_freedict(dict);
   }
 
-  MPI_Bcast(&time,1,MPI_DOUBLE,master_task,MPI_COMM_WORLD);
+  MPI_Bcast(&time_model,1,MPI_DOUBLE,master_task,MPI_COMM_WORLD);
   MPI_Bcast(&time_dt,1,MPI_DOUBLE,master_task,MPI_COMM_WORLD);
   MPI_Bcast(&time_step_dt,1,MPI_DOUBLE,master_task,MPI_COMM_WORLD);
   MPI_Bcast(&time_err_max,1,MPI_DOUBLE,master_task,MPI_COMM_WORLD);
@@ -91,7 +91,7 @@ double time_getmax(double complex *kfield) {
 
 int time_step() {
   double err = 0.0,
-         t1  = time + time_dt,
+         t1  = time_model + time_dt,
          dt, factor;
 
   bool is_boundary_step;
@@ -100,9 +100,9 @@ int time_step() {
 
   diag_write();
 
-  while(time < t1) {
-    if(time + time_step_dt > t1) {
-      dt = t1-time;
+  while(time_model < t1) {
+    if(time_model + time_step_dt > t1) {
+      dt = t1-time_model;
       is_boundary_step = true;
     }
     else {
@@ -119,13 +119,8 @@ int time_step() {
         dt *= 0.9*pow(factor,-0.25);
         time_step_dt = dt;
       }
-      umax = time_getmax(&kq[grid_3d_nn_local*0]);
-      vmax = time_getmax(&kq[grid_3d_nn_local*1]);
-      wmax = time_getmax(&kq[grid_3d_nn_local*2]);
-      bmax = time_getmax(&kq[grid_3d_nn_local*3]);
-      printf("factor = %1.16lf, new dt = %lf, umax = %1.16lf, vmax = %1.16lf, wmax = %1.16lf, bmax = %1.16lf\n", factor, dt, umax, vmax, wmax, bmax);
     }
-    time += dt;
+    time_model += dt;
     if(factor > 1.89e-4 && !is_boundary_step) {
       time_step_dt *= 0.9*pow(factor,-0.2);
     }
@@ -135,6 +130,12 @@ int time_step() {
 
     if(time_step_dt > time_dt) time_step_dt = time_dt;
   }
+  umax = time_getmax(&kq[grid_3d_nn_local*0]);
+  vmax = time_getmax(&kq[grid_3d_nn_local*1]);
+  wmax = time_getmax(&kq[grid_3d_nn_local*2]);
+
+  bmax = time_getmax(&kq[grid_3d_nn_local*3]);
+  printf("factor = %1.16lf, new dt = %lf, umax = %1.16lf, vmax = %1.16lf, wmax = %1.16lf, bmax = %1.16lf\n", factor, dt, umax, vmax, wmax, bmax);
 
   diag_write();
 

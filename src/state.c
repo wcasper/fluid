@@ -332,8 +332,8 @@ int state_read_config() {
       len = strlen(file_name)+1;
       state_restart_file_name = calloc(len,sizeof(char));
     }
+    iniparser_freedict(dict);
   }
-  iniparser_freedict(dict);
 
   MPI_Bcast(&nq,1,MPI_INT,master_task,MPI_COMM_WORLD);
 
