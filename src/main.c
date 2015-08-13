@@ -26,16 +26,21 @@ int main(int argc, char *argv[]) {
   error_check(&status, "error in init\n");
   if(status) return status;
 
+
   for(i  = 0; i < 1000; i++) {
     if(i%1 == 0) {
       sprintf(file_name,"out/restart_%1.1lf.bin",time);
       state_write(file_name);
+      sprintf(file_name,"out/vort_%1.1lf.bin",time);
+      state_write_vort(file_name);
     }
     time_step();
   }
 
   sprintf(file_name,"out/restart_%1.1lf.bin",time);
   state_write(file_name);
+  sprintf(file_name,"out/vort_%1.1lf.bin",time);
+  state_write_vort(file_name);
 
   finalize();
 

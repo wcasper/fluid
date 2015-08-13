@@ -18,6 +18,9 @@ double complex *kq;
 ptrdiff_t nq = 1;
 grid_vertical_layout_t *state_layout;
 
+double complex *state_kvort;
+double *state_vort;
+
 double *rwork;
 double complex *cwork;
 
@@ -46,6 +49,9 @@ int state_init() {
   q  = fftw_alloc_real(grid_3d_nn_local*2*nq);
   kq = fftw_alloc_complex(grid_3d_nn_local*nq);
   state_layout = calloc(nq, sizeof(grid_vertical_layout_t));
+
+  state_vort = fftw_alloc_real(grid_3d_nn_local);
+  state_kvort = fftw_alloc_complex(grid_3d_nn_local);
 
   rwork = fftw_alloc_real(grid_3d_nn_local*2*nq);
   cwork = fftw_alloc_complex(grid_3d_nn_local*nq);
@@ -79,6 +85,20 @@ int state_init() {
       state_physical2spectral();
       break;
 
+    case STATE_INIT_TYPE_PATCHES_3D:
+      for(idx2d = 0; idx2d < grid_2d_nn_local*2; idx2d++) {
+        for(m = 0; m < grid_nz; m++) {
+          idx3d = idx2d + grid_2d_nn_local*2*m;
+          x = grid_2d_x[idx2d];
+          y = grid_2d_y[idx2d];
+          q[idx3d + grid_3d_nn_local*2*0] = 0.01*cos(2.0*M_PI*y);
+          q[idx3d + grid_3d_nn_local*2*1] = 0.01*cos(2.0*M_PI*x);
+          q[idx3d + grid_3d_nn_local*2*2] = 0.01*cos(2.0*M_PI*(x+y));
+        }
+      }
+      state_physical2spectral();
+      break;
+
     case STATE_INIT_TYPE_BOUSS3D_TEST1:
       state_layout[0] = GRID_VERTICAL_LAYOUT_COSINE;
       state_layout[1] = GRID_VERTICAL_LAYOUT_COSINE;
@@ -91,10 +111,10 @@ int state_init() {
           y = grid_2d_y[idx2d];
           z = grid_vd_z[m];
           idx3d = idx2d + grid_2d_nn_local*2*m;
-          q[grid_3d_nn_local*2*0 + idx3d] = sin(4.0*M_PI*y/grid_ly)*cos(4.0*M_PI*z/grid_lz)*(grid_lz/grid_ly)*1.0e1;
+          q[grid_3d_nn_local*2*0 + idx3d] = sin(4.0*M_PI*y/grid_ly)*cos(4.0*M_PI*z/grid_lz)*(grid_lz/grid_ly);
           q[grid_3d_nn_local*2*1 + idx3d] = sin(2.0*M_PI*x/grid_lx)*cos(2.0*M_PI*z/grid_lz)*(-grid_lz/grid_lx)*1.0e2;
           q[grid_3d_nn_local*2*3 + idx3d] = cos(2.0*M_PI*x/grid_lx)*sin(2.0*M_PI*z/grid_lz)*1.0e-2;
-          q[grid_3d_nn_local*2*3 + idx3d]+= 0.001*cos(4.0*M_PI*y/grid_ly)*sin(4.0*M_PI*z/grid_lz);
+          q[grid_3d_nn_local*2*3 + idx3d]+= 0.0001*cos(4.0*M_PI*y/grid_ly)*sin(4.0*M_PI*z/grid_lz);
           //q[grid_3d_nn_local*2*0 + idx3d] = sin(2.0*M_PI*y/grid_ly)*cos(2.0*M_PI*z/grid_lz)*(grid_lz/grid_ly)*1.0e2;
           //q[grid_3d_nn_local*2*3 + idx3d] = 0.01*cos(2.0*M_PI*y/grid_ly)*sin(2.0*M_PI*z/grid_lz);
           //q[grid_3d_nn_local*2*1 + idx3d] = sin(2.0*M_PI*x/grid_lx)*cos(2.0*M_PI*z/grid_lz)*(-grid_lz/grid_lx)*1.0e2;
@@ -105,6 +125,27 @@ int state_init() {
           q[grid_3d_nn_local*2*2 + idx3d]*= 1e-1;
           q[grid_3d_nn_local*2*3 + idx3d]*= 1e-1;
           */
+        }
+      }
+      state_physical2spectral();
+      break;
+
+    case STATE_INIT_TYPE_INS3D_TEST1:
+      state_layout[0] = GRID_VERTICAL_LAYOUT_PERIODIC;
+      state_layout[1] = GRID_VERTICAL_LAYOUT_PERIODIC;
+      state_layout[2] = GRID_VERTICAL_LAYOUT_PERIODIC;
+      state_layout[3] = GRID_VERTICAL_LAYOUT_PERIODIC;
+
+      for(idx2d = 0; idx2d < grid_2d_nn_local*2; idx2d++) {
+        for(m = 0; m < grid_nz; m++) {
+          x = grid_2d_x[idx2d];
+          y = grid_2d_y[idx2d];
+          z = m*grid_dz;
+          idx3d = idx2d + grid_2d_nn_local*2*m;
+          q[grid_3d_nn_local*2*0 + idx3d] = sin(4.0*M_PI*y/grid_ly)*cos(4.0*M_PI*z/grid_lz)*(grid_lz/grid_ly);
+          q[grid_3d_nn_local*2*1 + idx3d] = sin(2.0*M_PI*x/grid_lx)*cos(2.0*M_PI*z/grid_lz)*(-grid_lz/grid_lx)*1.0e2;
+          q[grid_3d_nn_local*2*3 + idx3d] = cos(2.0*M_PI*x/grid_lx)*sin(2.0*M_PI*z/grid_lz)*1.0e-2;
+          q[grid_3d_nn_local*2*3 + idx3d]+= 0.0001*cos(4.0*M_PI*y/grid_ly)*sin(4.0*M_PI*z/grid_lz);
         }
       }
       state_physical2spectral();
@@ -200,6 +241,21 @@ int state_write(char *ofile_name) {
 
   size_t write_size = 0;
 
+  int idx2d, idx3d, m;
+  double complex foo;
+  for(idx2d = 0; idx2d < grid_2d_nn_local; idx2d++) {
+    for(m = 0; m < grid_nz; m++) {
+      idx3d = idx2d + grid_2d_nn_local*m;
+      for(n = 0; n < nq; n++) {
+        foo = kq[idx3d + grid_3d_nn_local*n];
+        if(cabs(foo) > 1e-12) {
+          printf("hi!! %i %i %i %i ", grid_2d_i[idx2d], grid_2d_j[idx2d], m, n);
+          printf("%1.16lf %1.16lf\n", creal(foo), cimag(foo));
+        }
+      }
+    }
+  }
+
   state_spectral2physical();
 
   write_size = grid_nx*(grid_ny/2 + 1)*2;
@@ -240,6 +296,9 @@ int state_finalize() {
   free(state_layout);
   fftw_free(rwork);
   fftw_free(cwork);
+
+  fftw_free(state_vort);
+  fftw_free(state_kvort);
 
   if(state_restart_file_name) free(state_restart_file_name);
 
@@ -282,5 +341,55 @@ int state_read_config() {
 
   return status;
 }
+
+int state_write_vort(char *ofile_name) {
+  int idx2d, idx3d, m;
+
+  FILE *ofile;
+
+  size_t write_size = 0;
+
+
+  double *vort_global;
+
+  for(idx2d = 0; idx2d < grid_2d_nn_local; idx2d++) {
+    for(m = 0; m < grid_nz; m++) {
+      idx3d = idx2d + grid_2d_nn_local*m;
+
+      state_kvort[idx3d]  = kq[grid_3d_nn_local*1 + idx3d]*grid_2d_kx[idx2d];
+      state_kvort[idx3d] -= kq[grid_3d_nn_local*0 + idx3d]*grid_2d_ky[idx2d];
+    }
+  }
+  spectral2physical(state_kvort,state_vort,state_layout[0]);
+
+  write_size = grid_nx*(grid_ny/2 + 1)*2;
+  if(grid_nd == 3) {
+    write_size *= grid_nz;
+  }
+
+  if(my_task == master_task) {
+    vort_global = calloc(write_size, sizeof(double));
+  }
+
+  if(my_task == master_task) {
+    ofile = fopen(ofile_name, "wb");
+    assert(ofile);
+  }
+
+  gather_global_array(state_vort, vort_global, sizeof(double));
+
+  if(my_task == master_task) {
+    fwrite(vort_global, sizeof(double), write_size, ofile);
+  }
+  
+  if(my_task == master_task) {
+    fclose(ofile);
+    free(vort_global);
+  }
+
+  return 0;
+}
+
+
 
 
