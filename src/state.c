@@ -9,13 +9,14 @@
 #include "state.h"
 #include "grid.h"
 #include "comm.h"
+#include "model.h"
 #include "fourier.h"
 #include "config.h"
 #include "error.h"
 
 double *q;
 double complex *kq;
-ptrdiff_t nq = 1;
+int nq = 0;
 grid_vertical_layout_t *state_layout;
 
 double complex *state_kvort;
@@ -61,18 +62,51 @@ int state_init() {
     for(n = 0; n < nq; n++) {
       q[grid_3d_nn_local*2*n + idx3d] = 0.0;
     }
+    state_vort[idx3d] = 0.0;
   }
   for(idx3d = 0; idx3d < grid_3d_nn_local; idx3d++) {
     for(n = 0; n < nq; n++) {
       kq[grid_3d_nn_local*n + idx3d] = 0.0 + 0.0*I;
     }
+    state_kvort[idx3d] = 0.0 + 0.0*I;
   }
 
-      MPI_Barrier(MPI_COMM_WORLD);
+  // initialize vertical profiles
+  switch(model_type) {
+    case MODEL_INS2D:
+      state_layout[0] = GRID_VERTICAL_LAYOUT_PERIODIC;
+      break;
+
+    case MODEL_INS3D:
+      state_layout[0] = GRID_VERTICAL_LAYOUT_PERIODIC;
+      state_layout[1] = GRID_VERTICAL_LAYOUT_PERIODIC;
+      state_layout[2] = GRID_VERTICAL_LAYOUT_PERIODIC;
+      state_layout[3] = GRID_VERTICAL_LAYOUT_PERIODIC;
+      break;
+
+    case MODEL_BOUSS3D:
+      state_layout[0] = GRID_VERTICAL_LAYOUT_COSINE;
+      state_layout[1] = GRID_VERTICAL_LAYOUT_COSINE;
+      state_layout[2] = GRID_VERTICAL_LAYOUT_SINE;
+      state_layout[3] = GRID_VERTICAL_LAYOUT_SINE;
+      break;
+
+    default:
+      status = 1;
+      break;
+  }
+  error_check(&status, "unrecognized model type\n");
+  if(status) return status;
+
   // Initialize spectral data
   switch(state_init_type) {
     case STATE_INIT_TYPE_RESTART:
       state_read(state_restart_file_name);
+      state_physical2spectral();
+      state_spectral2physical();
+      state_physical2spectral();
+      state_spectral2physical();
+      state_physical2spectral();
       break;
 
     case STATE_INIT_TYPE_PATCHES_2D:
@@ -101,11 +135,6 @@ int state_init() {
       break;
 
     case STATE_INIT_TYPE_BOUSS3D_TEST1:
-      state_layout[0] = GRID_VERTICAL_LAYOUT_COSINE;
-      state_layout[1] = GRID_VERTICAL_LAYOUT_COSINE;
-      state_layout[2] = GRID_VERTICAL_LAYOUT_SINE;
-      state_layout[3] = GRID_VERTICAL_LAYOUT_SINE;
-
       for(idx2d = 0; idx2d < grid_2d_nn_local*2; idx2d++) {
         for(m = 0; m < grid_nz; m++) {
           x = grid_2d_x[idx2d];
@@ -132,11 +161,6 @@ int state_init() {
       break;
 
     case STATE_INIT_TYPE_INS3D_TEST1:
-      state_layout[0] = GRID_VERTICAL_LAYOUT_PERIODIC;
-      state_layout[1] = GRID_VERTICAL_LAYOUT_PERIODIC;
-      state_layout[2] = GRID_VERTICAL_LAYOUT_PERIODIC;
-      state_layout[3] = GRID_VERTICAL_LAYOUT_PERIODIC;
-
       for(idx2d = 0; idx2d < grid_2d_nn_local*2; idx2d++) {
         for(m = 0; m < grid_nz; m++) {
           x = grid_2d_x[idx2d];
@@ -258,6 +282,7 @@ int state_write(char *ofile_name) {
   }
 
   state_spectral2physical();
+  MPI_Barrier(MPI_COMM_WORLD);
 
   write_size = grid_nx*(grid_ny/2 + 1)*2;
   if(grid_nd == 3) {
@@ -313,6 +338,8 @@ int state_read_config() {
 
   char *file_name;
 
+  int type;
+
   if(my_task == master_task) {
     // read the configuration file
     dict = iniparser_load(config_file_name);
@@ -334,11 +361,14 @@ int state_read_config() {
       state_restart_file_name = calloc(len,sizeof(char));
       strcpy(state_restart_file_name,file_name);
     }
+    type = iniparser_getint(dict, "model:type", model_type);
     iniparser_freedict(dict);
   }
 
   MPI_Bcast(&nq,1,MPI_INT,master_task,MPI_COMM_WORLD);
   MPI_Bcast(&state_init_type,1,MPI_INT,master_task,MPI_COMM_WORLD);
+  MPI_Bcast(&type,1,MPI_INT,master_task,MPI_COMM_WORLD);
+  model_type = type;
 
   return status;
 }
@@ -353,14 +383,15 @@ int state_write_vort(char *ofile_name) {
 
   double *vort_global;
 
-  if(grid_nd < 2) return 1;
+  if(grid_nd < 3) return 1;
 
+  state_physical2spectral();
   for(idx2d = 0; idx2d < grid_2d_nn_local; idx2d++) {
     for(m = 0; m < grid_nz; m++) {
       idx3d = idx2d + grid_2d_nn_local*m;
 
-      state_kvort[idx3d]  = kq[grid_3d_nn_local*1 + idx3d]*grid_2d_kx[idx2d]*I;
-      state_kvort[idx3d] -= kq[grid_3d_nn_local*0 + idx3d]*grid_2d_ky[idx2d]*I;
+        state_kvort[idx3d]  = kq[grid_3d_nn_local*1 + idx3d]*grid_2d_kx[idx2d]*I;
+        state_kvort[idx3d] -= kq[grid_3d_nn_local*0 + idx3d]*grid_2d_ky[idx2d]*I;
     }
   }
   spectral2physical(state_kvort,state_vort,state_layout[0]);
