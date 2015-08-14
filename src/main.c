@@ -53,6 +53,8 @@ int main(int argc, char *argv[]) {
   sprintf(file_name,"out/vort_%1.1lf.bin",time_model);
   state_write_vort(file_name);
 
+  MPI_Barrier(MPI_COMM_WORLD);
+
   finalize();
 
   MPI_Finalize();

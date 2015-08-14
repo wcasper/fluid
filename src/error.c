@@ -58,6 +58,7 @@ int error_exit(int *status, char *error_message) {
     }
   }
 
+  MPI_Barrier(MPI_COMM_WORLD);
   exit(*status);
 
   return 0;
