@@ -1,14 +1,16 @@
 #ifndef __BOUSS_3D_H
 #define __BOUSS_3D_H
 
+#include "fluid.h"
+
 extern int bouss3d_step_type;
 
 int bouss3d_init();
 int bouss3d_finalize();
 
-double bouss3d_step_rk4_adaptive(double dt, double max_err_bnd);
+fluid_real bouss3d_step_rk4_adaptive(fluid_real dt, fluid_real max_err_bnd);
 
-void bouss3d_diag_write();
+void bouss3d_energy(double *ke_out, double *pe_out);
 
 #endif
 

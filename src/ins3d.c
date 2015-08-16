@@ -6,6 +6,7 @@
 #include <iniparser.h>
 
 #include "ins3d.h"
+#include "fluid.h"
 #include "grid.h"
 #include "comm.h"
 #include "error.h"
@@ -14,19 +15,19 @@
 #include "state.h"
 #include "config.h"
 
-double ins3d_kvisc    = 0.0;	// kinematic viscosity
-double ins3d_fcor     = 0.0;	// coriolis parameter
-double ins3d_sigma;		// boundary relax scale
+fluid_real ins3d_kvisc    = 0.0;	// kinematic viscosity
+fluid_real ins3d_fcor     = 0.0;	// coriolis parameter
+fluid_real ins3d_sigma;		// boundary relax scale
 
-double *rwork1, *rwork2, *rwork3,
+fluid_real *rwork1, *rwork2, *rwork3,
        *rwork4, *rwork5, *rwork6;
 
-double complex *cwork1, *cwork2, *cwork3,
+fluid_complex *cwork1, *cwork2, *cwork3,
                *cwork4, *cwork5, *cwork6; 
 
-static void ins3d_adv(double complex *kadv, double complex *kstate);
-static void ins3d_rhs(double complex *krhs, double complex *kstate);
-static void ins3d_p_adjust(double complex *kstate);
+static void ins3d_adv(fluid_complex *kadv, fluid_complex *kstate);
+static void ins3d_rhs(fluid_complex *krhs, fluid_complex *kstate);
+static void ins3d_p_adjust(fluid_complex *kstate);
 
 static int ins3d_read_config();
 
@@ -134,10 +135,10 @@ int ins3d_finalize() {
 }
 
 // nonlinear part -- careful, careful!
-void ins3d_adv(double complex *kadv, double complex *kstate) {
+void ins3d_adv(fluid_complex *kadv, fluid_complex *kstate) {
   ptrdiff_t idx2d, idx3d, m, n;
 
-  double kx, ky, kz;
+  fluid_real kx, ky, kz;
 
   int kk;
 
@@ -202,14 +203,14 @@ void ins3d_adv(double complex *kadv, double complex *kstate) {
   }
 }
 
-void ins3d_p_adjust(double complex *kstate) {
+void ins3d_p_adjust(fluid_complex *kstate) {
   ptrdiff_t idx2d, idx3d, m;
 
   int kk;
 
-  double kx, ky, kz;
+  fluid_real kx, ky, kz;
 
-  double complex kp;
+  fluid_complex kp;
 
   // adjust velocity based on pressure forcing
   for(idx2d = 0; idx2d < grid_2d_nn_local; idx2d++) {
@@ -237,10 +238,10 @@ void ins3d_p_adjust(double complex *kstate) {
   }
 }
 
-void ins3d_rhs(double complex *krhs, double complex *kstate) {
+void ins3d_rhs(fluid_complex *krhs, fluid_complex *kstate) {
   ptrdiff_t idx2d,idx3d,m,n;
 
-  double complex ku, kv, kw, kb;
+  fluid_complex ku, kv, kw, kb;
 
   int kk;
 
@@ -297,37 +298,37 @@ void ins3d_rhs(double complex *krhs, double complex *kstate) {
 }
 
 // Cash-Karp method of adaptive rk4
-double ins3d_step_rk4_adaptive(double dt, double err_bnd_global) {
+fluid_real ins3d_step_rk4_adaptive(fluid_real dt, fluid_real err_bnd_global) {
   ptrdiff_t ai, bi, n, idx2d, idx3d, m;
 
-  double complex *ks, *krhs;
+  fluid_complex *ks, *krhs;
 
   int kk;
 
-  double ksq;
+  fluid_real ksq;
 
-  double err_max = 0.0,
+  fluid_real err_max = 0.0,
          err, err_max_global;
 
-  double complex kerr, knorm;
+  fluid_complex kerr, knorm;
 
-  double norm;
+  fluid_real norm;
 
   const int runge_kutta_num = 6;
 
-  const double a[5][5] =
+  const fluid_real a[5][5] =
   {{1./5.       , 0.0      , 0.0        , 0.0           , 0.0       },
    {3./40.      , 9./40.   , 0.0        , 0.0           , 0.0       },
    {3./10.      , -9./10.  , 6./5.      , 0.0           , 0.0       },
    {-11./54.    , 5./2.    , -70./27.   , 35./27.       , 0.0       },
    {1631./55296., 175./512., 575./13824., 44275./110592., 253./4096.}};
  
-  //const double c[5] = {1./5.,3./10., 3./5., 1., 7./8.};
+  //const fluid_real c[5] = {1./5.,3./10., 3./5., 1., 7./8.};
 
-  const double b[6] = {37./378.,  0., 250./621.,
+  const fluid_real b[6] = {37./378.,  0., 250./621.,
                        125./594., 0., 512./1771.};
 
-  const double d[6] = {2825./27648., 0.,
+  const fluid_real d[6] = {2825./27648., 0.,
                        18575./48384.,
                        13525./55296.,
                        277/14336., 0.25};
@@ -389,6 +390,8 @@ double ins3d_step_rk4_adaptive(double dt, double err_bnd_global) {
             master_task, MPI_COMM_WORLD);
 
   if (err_max_global > err_bnd_global) {
+    fftw_free(ks);
+    fftw_free(krhs);
     return err_max_global;
   }
 

@@ -2,10 +2,12 @@
 #include <stdio.h>
 #include <math.h>
 #include <complex.h>
+#include <fftw3.h>
 #include <fftw3-mpi.h>
 #include <iniparser.h>
 
 #include "bouss3d.h"
+#include "fluid.h"
 #include "grid.h"
 #include "comm.h"
 #include "error.h"
@@ -14,29 +16,23 @@
 #include "state.h"
 #include "config.h"
 
-double bouss3d_kvisc    = 0.0;	// kinematic viscosity
-double bouss3d_fcor     = 0.0;	// coriolis parameter
-double bouss3d_sigma;		// boundary relax scale
-double *bouss3d_b_freq;		// bouyancy frequency
+fluid_real bouss3d_kvisc    = 0.0;	// kinematic viscosity
+fluid_real bouss3d_fcor     = 0.0;	// coriolis parameter
+fluid_real bouss3d_sigma;		// boundary relax scale
+fluid_real *bouss3d_b_freq;		// bouyancy frequency
 
-double bouss3d_diag_dke   = 0.0;  // change in kinetic energy
-double bouss3d_diag_pwork = 0.0;  // pressure work
-double bouss3d_diag_vwork = 0.0;  // friction work from viscosity
-double bouss3d_diag_bwork = 0.0;  // boundary work
+fluid_real *rwork1, *rwork2, *rwork3,
+           *rwork4, *rwork5, *rwork6;
 
-double *rwork1, *rwork2, *rwork3,
-       *rwork4, *rwork5, *rwork6;
+fluid_complex *cwork1, *cwork2, *cwork3,
+              *cwork4, *cwork5, *cwork6; 
 
-double complex *cwork1, *cwork2, *cwork3,
-               *cwork4, *cwork5, *cwork6; 
-
-static void bouss3d_adv(double complex *kadv, double complex *kstate);
-static void bouss3d_rhs(double complex *krhs, double complex *kstate);
-static void bouss3d_add_bouyancy_rhs(double complex *krhs, double complex *kstate);
-static void bouss3d_p_adjust(double complex *kstate);
-static void bouss3d_topo_f(double complex *kstate, double dt);
-static void bouss3d_noslip_bottom(double *work, double dt);
-static double bouss3d_ke();
+static void bouss3d_adv(fluid_complex *kadv, fluid_complex *kstate);
+static void bouss3d_rhs(fluid_complex *krhs, fluid_complex *kstate);
+static void bouss3d_add_bouyancy_rhs(fluid_complex *krhs, fluid_complex *kstate);
+static void bouss3d_p_adjust(fluid_complex *kstate);
+static void bouss3d_topo_f(fluid_complex *kstate, fluid_real dt);
+static void bouss3d_noslip_bottom(fluid_real *work, fluid_real dt);
 
 static int bouss3d_read_config();
 
@@ -72,7 +68,7 @@ int bouss3d_init() {
 
   int status = 0;
 
-  double bf;
+  fluid_real bf;
 
   // sanity check
   status = (nq != 4);
@@ -90,7 +86,7 @@ int bouss3d_init() {
   if(status) return status;
 
   // initialize the bouyancy frequency
-  bouss3d_b_freq = calloc(grid_nz,sizeof(double));
+  bouss3d_b_freq = calloc(grid_nz,sizeof(fluid_real));
   for(idx = 0; idx < grid_nz; idx++) {
     bf = grid_vd_z[idx];
     bf = 0.005*exp(-bf*bf);
@@ -163,10 +159,10 @@ int bouss3d_finalize() {
 }
 
 // nonlinear part -- careful, careful!
-void bouss3d_adv(double complex *kadv, double complex *kstate) {
+void bouss3d_adv(fluid_complex *kadv, fluid_complex *kstate) {
   ptrdiff_t idx2d, idx3d, m, n;
 
-  double kx, ky, kz;
+  fluid_real kx, ky, kz;
 
   // get the velocity in physical space
   for(idx2d = 0; idx2d < grid_2d_nn_local; idx2d++) {
@@ -257,12 +253,12 @@ void bouss3d_adv(double complex *kadv, double complex *kstate) {
   }
 }
 
-void bouss3d_p_adjust(double complex *kstate) {
+void bouss3d_p_adjust(fluid_complex *kstate) {
   ptrdiff_t idx2d, idx3d, m;
 
-  double kx, ky, kz;
+  fluid_real kx, ky, kz;
 
-  double complex kp;
+  fluid_complex kp;
 
   // adjust velocity based on pressure forcing
   for(idx2d = 0; idx2d < grid_2d_nn_local; idx2d++) {
@@ -271,14 +267,14 @@ void bouss3d_p_adjust(double complex *kstate) {
         idx3d = idx2d + grid_2d_nn_local*m;
         kx = grid_2d_kx[idx2d];
         ky = grid_2d_ky[idx2d];
+        kz = M_PI*m/grid_lz;
         kp = 0.0 + 0.0*I;
         if(fabs(kx) > 1e-14 ||
            fabs(ky) > 1e-14 || m > 0) {
           kp = kstate[grid_3d_nn_local*0 + idx3d]*kx*I
              + kstate[grid_3d_nn_local*1 + idx3d]*ky*I;
           if(m > 0) {
-            kz = grid_vd_kze[m];
-            kp += kstate[grid_3d_nn_local*2 - grid_2d_nn_local + idx3d]*(-kz);
+            kp += kstate[grid_3d_nn_local*2 - grid_2d_nn_local + idx3d]*kz;
             kp/= -kx*kx - ky*ky - kz*kz;
           }
           else {
@@ -289,18 +285,17 @@ void bouss3d_p_adjust(double complex *kstate) {
         kstate[grid_3d_nn_local*0 + idx3d] -= I*kx*kp;
         kstate[grid_3d_nn_local*1 + idx3d] -= I*ky*kp;
         if(m > 0) {
-          kz = grid_vd_kze[m];
-          kstate[grid_3d_nn_local*2 - grid_2d_nn_local + idx3d] -= kz*kp;
+          kstate[grid_3d_nn_local*2 - grid_2d_nn_local + idx3d] -= -kz*kp;
         }
       }
     }
   }
 }
 
-void bouss3d_rhs(double complex *krhs, double complex *kstate) {
+void bouss3d_rhs(fluid_complex *krhs, fluid_complex *kstate) {
   ptrdiff_t idx2d,idx3d,m,n;
 
-  double complex ku, kv, kw, kb;
+  fluid_complex ku, kv, kw, kb;
 
   // calculate the advection
   bouss3d_adv(krhs, kstate);
@@ -371,10 +366,10 @@ void bouss3d_rhs(double complex *krhs, double complex *kstate) {
   bouss3d_p_adjust(krhs);
 }
 
-void bouss3d_noslip_bottom(double *work, double dt) {
+void bouss3d_noslip_bottom(fluid_real *work, fluid_real dt) {
   int idx2d, m, idx3d, topo_idx;
 
-  double coeff;
+  fluid_real coeff;
 
   for(idx2d = 0; idx2d < grid_2d_nn_local*2; idx2d++) {
     for(m = 0; m < grid_nz; m++) {
@@ -395,7 +390,7 @@ void bouss3d_noslip_bottom(double *work, double dt) {
   }
 }
 
-void bouss3d_topo_f(double complex *kstate, double dt) {
+void bouss3d_topo_f(fluid_complex *kstate, fluid_real dt) {
   ptrdiff_t idx3d;
 
   // get the velocity in physical space
@@ -429,11 +424,11 @@ void bouss3d_topo_f(double complex *kstate, double dt) {
   bouss3d_p_adjust(kstate);
 }
 
-void bouss3d_add_bouyancy_rhs(double complex *krhs, double complex *kstate) {
+void bouss3d_add_bouyancy_rhs(fluid_complex *krhs, fluid_complex *kstate) {
   ptrdiff_t idx3d,idx2d,m;
 
   // get the vertical velocity in physical space
-  memcpy(cwork6,&kstate[grid_3d_nn_local*2],grid_3d_nn_local*sizeof(double complex));
+  memcpy(cwork6,&kstate[grid_3d_nn_local*2],grid_3d_nn_local*sizeof(fluid_complex));
   spectral2physical(cwork6,rwork6, GRID_VERTICAL_LAYOUT_SINE);
 
   // multiply w and b_freq
@@ -451,46 +446,41 @@ void bouss3d_add_bouyancy_rhs(double complex *krhs, double complex *kstate) {
 }
 
 // Cash-Karp method of adaptive rk4
-double bouss3d_step_rk4_adaptive(double dt, double err_bnd_global) {
+fluid_real bouss3d_step_rk4_adaptive(fluid_real dt, fluid_real err_bnd_global) {
   ptrdiff_t ai, bi, n, idx2d, idx3d, m;
 
-  double complex *ks, *krhs;
+  fluid_complex *ks, *krhs;
 
-  double ksq_2d, ksq_vd;
+  fluid_real ksq_2d, ksq_vd;
 
-  double ke0, ke1, ke2;
-
-  double err_max = 0.0,
+  fluid_real err_max = 0.0,
          err, err_max_global;
 
-  double complex kerr, knorm;
+  fluid_complex kerr, knorm;
 
-  double norm;
+  fluid_real norm;
 
-  const int runge_kutta_num = 6;
-
-  const double a[5][5] =
+  const fluid_real a[5][5] =
   {{1./5.       , 0.0      , 0.0        , 0.0           , 0.0       },
    {3./40.      , 9./40.   , 0.0        , 0.0           , 0.0       },
    {3./10.      , -9./10.  , 6./5.      , 0.0           , 0.0       },
    {-11./54.    , 5./2.    , -70./27.   , 35./27.       , 0.0       },
    {1631./55296., 175./512., 575./13824., 44275./110592., 253./4096.}};
  
-  //const double c[5] = {1./5.,3./10., 3./5., 1., 7./8.};
+  //const fluid_real c[5] = {1./5.,3./10., 3./5., 1., 7./8.};
 
-  const double b[6] = {37./378.,  0., 250./621.,
+  const fluid_real b[6] = {37./378.,  0., 250./621.,
                        125./594., 0., 512./1771.};
 
-  const double d[6] = {2825./27648., 0.,
+  const fluid_real d[6] = {2825./27648., 0.,
                        18575./48384.,
                        13525./55296.,
                        277/14336., 0.25};
 
+  const int runge_kutta_num = 6;
+
   ks   = fftw_alloc_complex(grid_3d_nn_local*nq*runge_kutta_num);
   krhs = fftw_alloc_complex(grid_3d_nn_local*nq);
-
-  // calculate the kinetic energy
-  ke0 = bouss3d_ke();
 
   // calculate the runge kutta coefficients (ks)
   for(bi = 0; bi < runge_kutta_num; bi++) {
@@ -530,7 +520,7 @@ double bouss3d_step_rk4_adaptive(double dt, double err_bnd_global) {
             knorm += dt*b[bi]*ks[grid_3d_nn_local*(bi*nq + n) + idx3d];
           }
           norm = cabs(knorm);
-          norm = (norm < 1e-12) ? 1e-12 : norm;
+          norm = (norm < 1e-8) ? 1e-8 : norm;
           err = cabs(kerr)/norm;
           if (err > err_max) err_max = err;
         }
@@ -545,22 +535,23 @@ double bouss3d_step_rk4_adaptive(double dt, double err_bnd_global) {
             master_task, MPI_COMM_WORLD);
 
   if (err_max_global > err_bnd_global) {
+    fftw_free(ks);
+    fftw_free(krhs);
     return err_max_global;
   }
 
   for(idx3d = 0; idx3d < grid_3d_nn_local; idx3d++) {
     for(bi = 0; bi < runge_kutta_num; bi++) {
       for(n = 0; n < nq; n++) {
-        if(cabs(ks[grid_3d_nn_local*(bi*nq + n) + idx3d]) > 1e-14) {
-          kq[grid_3d_nn_local*n + idx3d]
-            += dt*b[bi]*ks[grid_3d_nn_local*(bi*nq + n) + idx3d];
-        }
+        kq[grid_3d_nn_local*n + idx3d]
+          += dt*b[bi]*ks[grid_3d_nn_local*(bi*nq + n) + idx3d];
       }
     }
   }
+  fftw_free(ks);
+  fftw_free(krhs);
 
   // apply viscous damping
-  ke1 = bouss3d_ke();
   for(idx2d = 0; idx2d < grid_2d_nn_local; idx2d++) {
     ksq_2d = grid_2d_kx[idx2d]*grid_2d_kx[idx2d]
            + grid_2d_ky[idx2d]*grid_2d_ky[idx2d];
@@ -582,14 +573,9 @@ double bouss3d_step_rk4_adaptive(double dt, double err_bnd_global) {
       }
     }
   }
-  ke2 = bouss3d_ke();
-  bouss3d_diag_vwork += ke2-ke1;
 
   // apply boundary adjustment
-  //ke1 = bouss3d_ke();
   //bouss3d_topo_f(kq, dt);
-  //ke2 = bouss3d_ke();
-  //bouss3d_diag_bwork += ke2-ke1;
 
   // dealias kq
   for(idx2d = 0; idx2d < grid_2d_nn_local; idx2d++) {
@@ -603,56 +589,46 @@ double bouss3d_step_rk4_adaptive(double dt, double err_bnd_global) {
     }
   }
 
-  ke2 = bouss3d_ke();
-  bouss3d_diag_dke = ke2-ke0;
-
-  fftw_free(ks);
-  fftw_free(krhs);
   return err_max_global;
 }
 
-double bouss3d_ke() {
+void bouss3d_energy(double *ke_out, double *pe_out) {
   int idx2d, idx3d, m;
 
-  double u,v,w,ke,ke_tot,ke_tot_g;
+  fluid_real u,v,w,b;
+  fluid_real ke,ke_tot,ke_tot_g;
+  fluid_real pe,pe_tot,pe_tot_g;
 
+  pe_tot   = 0.0;
   ke_tot   = 0.0;
   ke_tot_g = 0.0;
-  for(idx2d = 0; idx2d < grid_2d_nn_local; idx2d++) {
-    if(!grid_2d_dealias_mask[idx2d]) {
-      for(m = 0; m < (grid_nz*2)/3; m++) {
-        idx3d = idx2d + grid_2d_nn_local*m;
+  pe_tot_g = 0.0;
+  for(idx2d = 0; idx2d < 2*grid_2d_nn_local; idx2d++) {
+    for(m = 0; m < grid_nz; m++) {
+      idx3d = idx2d + 2*grid_2d_nn_local*m;
 
-        u = cabs(kq[grid_3d_nn_local*0 + idx3d]);
-        v = cabs(kq[grid_3d_nn_local*1 + idx3d]);
-        w = cabs(kq[grid_3d_nn_local*2 + idx3d]);
+      u = q[grid_3d_nn_local*2*0 + idx3d];
+      v = q[grid_3d_nn_local*2*1 + idx3d];
+      w = q[grid_3d_nn_local*2*2 + idx3d];
+      b = q[grid_3d_nn_local*2*3 + idx3d];
 
-        ke = 0.5*(u*u + v*v + w*w);
-        ke_tot += ke*grid_2d_wgt[idx2d];
+      ke = 0.5*(u*u + v*v + w*w);
+      pe = 0.5*(b*b)*1e6;
+      if(!grid_2d_buffer[idx2d]) {
+        ke_tot += ke;
+        pe_tot += pe;
       }
     }
   }
 
   MPI_Reduce(&ke_tot, &ke_tot_g,  1,
              MPI_DOUBLE, MPI_SUM, master_task, MPI_COMM_WORLD);
+  MPI_Reduce(&pe_tot, &pe_tot_g,  1,
+             MPI_DOUBLE, MPI_SUM, master_task, MPI_COMM_WORLD);
 
-  return ke_tot_g;
-}
+  *ke_out = ke_tot_g;
+  *pe_out = pe_tot_g;
 
-void bouss3d_diag_write() {
-  double ke_total = bouss3d_ke();
-
-  if(my_task == master_task) {
-    printf("TOTAL KE: %1.16lf\n", ke_total);
-    printf("DELTA KE: %1.16lf\n", bouss3d_diag_dke);
-    printf("PRES WRK: %1.16lf\n", bouss3d_diag_pwork);
-    printf("FRIC WRK: %1.16lf\n", bouss3d_diag_vwork);
-    printf("BDRY WRK: %1.16lf\n", bouss3d_diag_bwork);
-  }
-
-  bouss3d_diag_dke = 0.0;
-  bouss3d_diag_pwork = 0.0;
-  bouss3d_diag_vwork = 0.0;
-  bouss3d_diag_bwork = 0.0;
+  return;
 }
 

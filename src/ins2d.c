@@ -6,6 +6,7 @@
 #include <iniparser.h>
 
 #include "ins2d.h"
+#include "fluid.h"
 #include "grid.h"
 #include "comm.h"
 #include "error.h"
@@ -13,14 +14,14 @@
 #include "state.h"
 #include "config.h"
 
-double ins2d_kvisc    = 0.0;	// kinematic viscosity
+fluid_real ins2d_kvisc    = 0.0;	// kinematic viscosity
 
-double *rwork1, *rwork2, *rwork3, *rwork4;
+fluid_real *rwork1, *rwork2, *rwork3, *rwork4;
 
-double complex *cwork1, *cwork2, *cwork3, *cwork4;
+fluid_complex *cwork1, *cwork2, *cwork3, *cwork4;
 
-static void ins2d_adv(double complex *kadv, double complex *kq_in);
-static void ins2d_rhs(double complex *krhs, double complex *kstate);
+static void ins2d_adv(fluid_complex *kadv, fluid_complex *kq_in);
+static void ins2d_rhs(fluid_complex *krhs, fluid_complex *kstate);
 static int ins2d_read_config();
 
 int ins2d_read_config() {
@@ -110,10 +111,10 @@ int ins2d_finalize() {
 }
 
 // nonlinear part -- careful, careful!
-void ins2d_adv(double complex *kadv, double complex *kq_in) {
+void ins2d_adv(fluid_complex *kadv, fluid_complex *kq_in) {
   ptrdiff_t idx2d;
 
-  double kx, ky;
+  fluid_real kx, ky;
 
   // calculate the advection
   for(idx2d = 0; idx2d < grid_2d_nn_local; idx2d++) {
@@ -143,20 +144,20 @@ void ins2d_adv(double complex *kadv, double complex *kq_in) {
     }
   }
 
-  spectral2physical(cwork1, rwork1, 0);
-  spectral2physical(cwork2, rwork2, 0);
-  spectral2physical(cwork3, rwork3, 0);
-  spectral2physical(cwork4, rwork4, 0);
+  spectral2physical(cwork1, rwork1, state_layout[0]);
+  spectral2physical(cwork2, rwork2, state_layout[0]);
+  spectral2physical(cwork3, rwork3, state_layout[0]);
+  spectral2physical(cwork4, rwork4, state_layout[0]);
 
   for(idx2d = 0; idx2d < grid_2d_nn_local*2; idx2d++) {
     rwork1[idx2d] = rwork1[idx2d]*rwork2[idx2d]
                   - rwork3[idx2d]*rwork4[idx2d];
   }
 
-  physical2spectral(rwork1, kadv, 0);
+  physical2spectral(rwork1, kadv, state_layout[0]);
 }
 
-void ins2d_rhs(double complex *krhs, double complex *kstate) {
+void ins2d_rhs(fluid_complex *krhs, fluid_complex *kstate) {
   ptrdiff_t idx2d;
 
   // calculate the advection
@@ -168,33 +169,33 @@ void ins2d_rhs(double complex *krhs, double complex *kstate) {
 }
 
 // Cash-Karp method of adaptive rk4
-double ins2d_step_rk4_adaptive(double dt, double err_bnd_global) {
+fluid_real ins2d_step_rk4_adaptive(fluid_real dt, fluid_real err_bnd_global) {
   ptrdiff_t ai, bi, idx2d;
 
-  double complex *ks, *krhs;
+  fluid_complex *ks, *krhs;
 
-  double ksq;
+  fluid_real ksq;
 
-  double err_max = 0.0,
+  fluid_real err_max = 0.0,
          err, err_max_global;
 
-  double complex kerr;
+  fluid_complex kerr;
 
   const int runge_kutta_num = 6;
 
-  const double a[5][5] =
+  const fluid_real a[5][5] =
   {{1./5.       , 0.0      , 0.0        , 0.0           , 0.0       },
    {3./40.      , 9./40.   , 0.0        , 0.0           , 0.0       },
    {3./10.      , -9./10.  , 6./5.      , 0.0           , 0.0       },
    {-11./54.    , 5./2.    , -70./27.   , 35./27.       , 0.0       },
    {1631./55296., 175./512., 575./13824., 44275./110592., 253./4096.}};
  
-  //const double c[5] = {1./5.,3./10., 3./5., 1., 7./8.};
+  //const fluid_real c[5] = {1./5.,3./10., 3./5., 1., 7./8.};
 
-  const double b[6] = {37./378.,  0., 250./621.,
+  const fluid_real b[6] = {37./378.,  0., 250./621.,
                        125./594., 0., 512./1771.};
 
-  const double d[6] = {2825./27648., 0.,
+  const fluid_real d[6] = {2825./27648., 0.,
                        18575./48384.,
                        13525./55296.,
                        277/14336., 0.25};
@@ -241,6 +242,8 @@ double ins2d_step_rk4_adaptive(double dt, double err_bnd_global) {
             master_task, MPI_COMM_WORLD);
 
   if (err_max_global > err_bnd_global) {
+    fftw_free(ks);
+    fftw_free(krhs);
     return err_max_global;
   }
 

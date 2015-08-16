@@ -6,6 +6,7 @@
 #include <iniparser.h>
 
 #include "grid.h"
+#include "fluid.h"
 #include "error.h"
 #include "config.h"
 #include "comm.h"
@@ -23,22 +24,22 @@ ptrdiff_t grid_2d_nn_local = 0;
 ptrdiff_t grid_2d_n0_local = 0;
 ptrdiff_t grid_3d_nn_local = 0;
 
-double grid_lx = 1.0;
-double grid_ly = 1.0;
-double grid_lz = 1.0;
+fluid_real grid_lx = 1.0;
+fluid_real grid_ly = 1.0;
+fluid_real grid_lz = 1.0;
 
-double grid_dx = 0.0;
-double grid_dy = 0.0;
-double grid_dz = 0.0;
+fluid_real grid_dx = 0.0;
+fluid_real grid_dy = 0.0;
+fluid_real grid_dz = 0.0;
 
-double *grid_2d_kx = NULL;
-double *grid_2d_ky = NULL;
-double *grid_vd_kzo = NULL;
-double *grid_vd_kze = NULL;
+fluid_real *grid_2d_kx = NULL;
+fluid_real *grid_2d_ky = NULL;
+fluid_real *grid_vd_kzo = NULL;
+fluid_real *grid_vd_kze = NULL;
 
-double *grid_2d_x = NULL;
-double *grid_2d_y = NULL;
-double *grid_vd_z = NULL;
+fluid_real *grid_2d_x = NULL;
+fluid_real *grid_2d_y = NULL;
+fluid_real *grid_vd_z = NULL;
 
 int *grid_2d_i = NULL;
 int *grid_2d_j = NULL;
@@ -46,10 +47,10 @@ int *grid_2d_j = NULL;
 int *grid_2d_ki = NULL;
 int *grid_2d_kj = NULL;
 
-double grid_2d_ksq_max = 0.0;
-double grid_vd_ksq_max = 0.0;
+fluid_real grid_2d_ksq_max = 0.0;
+fluid_real grid_vd_ksq_max = 0.0;
 
-double *grid_2d_wgt	= NULL;
+fluid_real *grid_2d_wgt	= NULL;
 
 bool *grid_2d_dealias_mask = NULL;
 bool *grid_2d_buffer = NULL;
@@ -141,8 +142,8 @@ int grid_init_layout_2d() {
   int i, j, idx, ki, kj;
   int status = 0;
 
-  grid_dx = grid_lx/(double)grid_nx;
-  grid_dy = grid_ly/(double)grid_ny;
+  grid_dx = grid_lx/(fluid_real)grid_nx;
+  grid_dy = grid_ly/(fluid_real)grid_ny;
 
   fftw_mpi_init();
   grid_2d_nn_local
@@ -152,14 +153,14 @@ int grid_init_layout_2d() {
 
   grid_2d_nn = grid_nx*grid_ny;
 
-  grid_2d_kx = calloc(grid_2d_nn_local, sizeof(double));
-  grid_2d_ky = calloc(grid_2d_nn_local, sizeof(double));
+  grid_2d_kx = calloc(grid_2d_nn_local, sizeof(fluid_real));
+  grid_2d_ky = calloc(grid_2d_nn_local, sizeof(fluid_real));
 
   grid_2d_ki = calloc(grid_2d_nn_local, sizeof(int));
   grid_2d_kj = calloc(grid_2d_nn_local, sizeof(int));
 
-  grid_2d_x  = calloc(grid_2d_nn_local*2, sizeof(double));
-  grid_2d_y  = calloc(grid_2d_nn_local*2, sizeof(double));
+  grid_2d_x  = calloc(grid_2d_nn_local*2, sizeof(fluid_real));
+  grid_2d_y  = calloc(grid_2d_nn_local*2, sizeof(fluid_real));
 
   grid_2d_i  = calloc(grid_2d_nn_local*2, sizeof(int));
   grid_2d_j  = calloc(grid_2d_nn_local*2, sizeof(int));
@@ -167,7 +168,11 @@ int grid_init_layout_2d() {
   grid_2d_dealias_mask = calloc(grid_2d_nn_local, sizeof(bool));
   grid_2d_buffer = calloc(grid_2d_nn_local*2, sizeof(bool));
 
-  grid_2d_wgt = calloc(grid_2d_nn_local, sizeof(double));
+  grid_2d_wgt = calloc(grid_2d_nn_local, sizeof(fluid_real));
+
+  for(idx = 0; idx < grid_2d_nn_local; idx++) {
+    //grid_2d_dealias_mask[idx] = true;
+  }
 
   for (i = 0; i < grid_2d_nx_local; i++) {
     for (j = 0; j < grid_ny/2 + 1; j++) {
@@ -217,17 +222,23 @@ int grid_init_layout_2d() {
   grid_2d_ksq_max  = pow(2.0*M_PI*grid_nx*(1./3.)/grid_lx,2.0);
   grid_2d_ksq_max += pow(2.0*M_PI*grid_ny*(1./3.)/grid_ly,2.0);
 
+  for(idx = 0; idx < grid_2d_nn_local*2; idx ++) {
+    grid_2d_buffer[idx] = true;
+    grid_2d_i[idx] = -1;
+    grid_2d_j[idx] = -1;
+  }
   for(i = 0; i < grid_2d_nx_local; i++) {
     for(j = 0; j < (grid_ny/2 +1)*2; j++) {
       idx = i*(grid_ny/2 + 1)*2 + j;
 
-        grid_2d_x[idx] = (grid_2d_n0_local + i)*grid_dx;
-        grid_2d_y[idx] = j*grid_dy;
-
         grid_2d_i[idx] = grid_2d_n0_local + i;
         grid_2d_j[idx] = j;
 
-      if(j >= grid_ny) {
+        grid_2d_x[idx] = grid_2d_i[idx]*grid_dx;
+        grid_2d_y[idx] = grid_2d_j[idx]*grid_dy;
+
+      if(grid_2d_j[idx] >= grid_ny ||
+         grid_2d_i[idx] >= grid_nx ) {
         grid_2d_buffer[idx] = true;
       }
       else {
@@ -248,17 +259,17 @@ int grid_init_layout_3d() {
   if(status) return status;
 
   // initialize the 3d layout
-  grid_dz = grid_lz/(double)grid_nz;
+  grid_dz = grid_lz/(fluid_real)grid_nz;
   grid_3d_nn = grid_2d_nn*grid_nz;
 
-  grid_vd_z  = calloc(grid_nz, sizeof(double));
-  grid_vd_kzo = calloc(grid_nz+1, sizeof(double));
-  grid_vd_kze = calloc(grid_nz+1, sizeof(double));
+  grid_vd_z  = calloc(grid_nz, sizeof(fluid_real));
+  grid_vd_kzo = calloc(grid_nz+1, sizeof(fluid_real));
+  grid_vd_kze = calloc(grid_nz+1, sizeof(fluid_real));
 
   grid_vd_ksq_max  = pow(1.0*M_PI*grid_nz*(2./3.)/grid_lz,2.0);
 
   for(m = 0; m < grid_nz; m++) {
-    grid_vd_z[m]  = ((m+0.5)/(double)grid_nz)*grid_lz;
+    grid_vd_z[m]  = ((m+0.5)/(fluid_real)grid_nz)*grid_lz;
     grid_vd_kzo[m] =  M_PI*(m+1)/grid_lz;
     grid_vd_kze[m] = -M_PI*m/grid_lz;
   }

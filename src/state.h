@@ -2,14 +2,14 @@
 #define __STATE_H
 
 #include <math.h>
-#include <complex.h>
 
+#include "fluid.h"
 #include "grid.h"
 
-extern double *q;		// state variables in physical space
-extern double complex *kq;	// state variables in spectral space
+extern fluid_real *q;		// state variables in physical space
+extern fluid_complex *kq;	// state variables in spectral space
 
-extern ptrdiff_t nq;		// number of state variables
+extern int nq;			// number of state variables
 
 extern grid_vertical_layout_t * state_layout; // vertical expansion types
 

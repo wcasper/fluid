@@ -74,8 +74,6 @@ int gather_global_array_2d(void *local, void *global, size_t size) {
       task_n0, //starting index of task
       task_nn; //number of indices in the current task
 
-  int m;
-
   MPI_Status status;
 
   ptrdiff_t idx, num;
@@ -126,8 +124,6 @@ int scatter_global_array_2d(void *local, void *global, size_t size) {
   int task, tag1, tag2, tag3,
       task_n0, //starting index of task
       task_nn; //number of indices in the current task
-
-  int m;
 
   MPI_Status status;
 

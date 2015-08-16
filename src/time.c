@@ -5,23 +5,24 @@
 #include <mpi.h>
 
 #include "time.h"
+#include "fluid.h"
 #include "comm.h"
 #include "config.h"
 #include "error.h"
 #include "diag.h"
 #include "state.h"
 
-double time_model = 0.0;
-double time_dt = 1e-0;
-double time_step_dt = 1e-3;
-double time_err_max = 1e-8;
+fluid_real time_model = 0.0;
+fluid_real time_dt = 1e-0;
+fluid_real time_step_dt = 1e-3;
+fluid_real time_err_max = 1e-8;
 
-double (*time_step_model)(double, double);
+fluid_real (*time_step_model)(fluid_real, fluid_real);
 
 static int time_read_config();
-static double time_getmax(double complex *kfield);
+static fluid_real time_getmax(fluid_complex *kfield);
 
-int time_step_set(double (*step_function)(double, double)) {
+int time_step_set(fluid_real (*step_function)(fluid_real, fluid_real)) {
   time_step_model = step_function;
   return 0;
 }
@@ -67,10 +68,10 @@ int time_init() {
   return status;
 }
 
-double time_getmax(double complex *kfield) {
+fluid_real time_getmax(fluid_complex *kfield) {
   int idx2d, idx3d, m;
 
-  double u, umax, umax_global;
+  fluid_real u, umax, umax_global;
 
   umax = 0.0;
   for(idx2d = 0; idx2d < grid_2d_nn_local; idx2d++) {
@@ -92,15 +93,13 @@ double time_getmax(double complex *kfield) {
 
 
 int time_step() {
-  double err = 0.0,
+  fluid_real err = 0.0,
          t1  = time_model + time_dt,
          dt, factor;
 
   bool is_boundary_step;
 
-  double umax, vmax, wmax, bmax;
-
-  diag_write();
+  fluid_real umax, vmax, wmax, bmax;
 
   while(time_model < t1) {
     if(time_model + time_step_dt > t1) {
@@ -140,7 +139,6 @@ int time_step() {
 
     if(time_step_dt > time_dt) time_step_dt = time_dt;
   }
-  diag_write();
 
   return 0;
 }

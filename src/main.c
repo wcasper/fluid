@@ -5,6 +5,7 @@
 #include <time.h>
 #include "mpi.h"
 
+#include "fluid.h"
 #include "time.h"
 #include "init.h"
 #include "state.h"
@@ -14,7 +15,7 @@
 int main(int argc, char *argv[]) {
   int i, status;
 
-  char file_name[256];
+  char file_name[__FLUID_STRLEN_MAX];
 
   MPI_Init(&argc, &argv);
 
@@ -34,9 +35,9 @@ int main(int argc, char *argv[]) {
 
   for(i  = 0; i < 1000; i++) {
     if(i%1 == 0) {
-      sprintf(file_name,"out/restart_%1.1lf.bin",time_model);
+      snprintf(file_name,__FLUID_STRLEN_MAX-1,"out/restart_%1.1lf.bin",time_model);
       state_write(file_name);
-      sprintf(file_name,"out/vort_%1.1lf.bin",time_model);
+      snprintf(file_name,__FLUID_STRLEN_MAX-1,"out/vort_%1.1lf.bin",time_model);
       state_write_vort(file_name);
     }
     time_step();
@@ -48,9 +49,9 @@ int main(int argc, char *argv[]) {
   printf("Time Spent: %1.16lf\n", time_spent);
 
 
-  sprintf(file_name,"out/restart_%1.1lf.bin",time_model);
+  snprintf(file_name,__FLUID_STRLEN_MAX-1,"out/restart_%1.1lf.bin",time_model);
   state_write(file_name);
-  sprintf(file_name,"out/vort_%1.1lf.bin",time_model);
+  snprintf(file_name,__FLUID_STRLEN_MAX-1,"out/vort_%1.1lf.bin",time_model);
   state_write_vort(file_name);
 
   MPI_Barrier(MPI_COMM_WORLD);

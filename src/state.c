@@ -2,33 +2,34 @@
 #include <string.h>
 #include <math.h>
 #include <complex.h>
+#include <fftw3.h>
 #include <fftw3-mpi.h>
 #include <assert.h>
 #include <iniparser.h>
 
 #include "state.h"
+#include "fluid.h"
 #include "grid.h"
 #include "comm.h"
 #include "model.h"
 #include "fourier.h"
 #include "config.h"
 #include "error.h"
+#include "bouss3d.h"
 
-double *q;
-double complex *kq;
+fluid_real *q;
+fluid_complex *kq;
 int nq = 0;
 grid_vertical_layout_t *state_layout;
 
-double complex *state_kvort;
-double *state_vort;
+fluid_complex *state_kvort;
+fluid_real *state_vort;
 
-double *rwork;
-double complex *cwork;
+fluid_real *rwork;
+fluid_complex *cwork;
 
 FILE *state_ifile,
      *state_ofile;
-
-char ifile_name[256] = "init.ieeer8";
 
 state_init_type_t state_init_type = STATE_INIT_TYPE_PATCHES_2D;
 
@@ -41,7 +42,7 @@ int state_init() {
 
   int status = 0;
 
-  double x, y, z;
+  fluid_real x, y, z;
 
   status = state_read_config();
   error_check(&status, "error in state_read_config\n");
@@ -51,7 +52,7 @@ int state_init() {
   kq = fftw_alloc_complex(grid_3d_nn_local*nq);
   state_layout = calloc(nq, sizeof(grid_vertical_layout_t));
 
-  state_vort = fftw_alloc_real(grid_3d_nn_local);
+  state_vort = fftw_alloc_real(grid_3d_nn_local*2);
   state_kvort = fftw_alloc_complex(grid_3d_nn_local);
 
   rwork = fftw_alloc_real(grid_3d_nn_local*2*nq);
@@ -157,6 +158,11 @@ int state_init() {
           */
         }
       }
+      double ke, pe;
+      bouss3d_energy(&ke, &pe);
+      if(my_task == master_task) {
+        printf("KE PE TE %1.16lf %1.16lf %1.16lf\n", ke, pe, ke+pe);
+      }
       state_physical2spectral();
       break;
 
@@ -187,7 +193,7 @@ int state_init() {
 int state_physical2spectral() {
   ptrdiff_t n,idx;
 
-  //memcpy(rwork,q,grid_3d_nn_local*nq*2*sizeof(double));
+  //memcpy(rwork,q,grid_3d_nn_local*nq*2*sizeof(fluid_real));
   for(idx = 0; idx < grid_3d_nn_local*2*nq; idx++) {
     rwork[idx] = q[idx];
   }
@@ -203,7 +209,7 @@ int state_physical2spectral() {
 int state_spectral2physical() {
   ptrdiff_t n, idx;
 
-  //memcpy(cwork,kq,grid_3d_nn_local*nq*sizeof(double complex));
+  //memcpy(cwork,kq,grid_3d_nn_local*nq*sizeof(fluid_complex));
   for(idx = 0; idx < grid_3d_nn_local*nq; idx++) {
     cwork[idx] = kq[idx];
   }
@@ -221,7 +227,7 @@ int state_read(char *ifile_name) {
 
   FILE *ifile;
 
-  double *q_global;
+  fluid_real *q_global;
 
   size_t read_size = 0;
 
@@ -231,7 +237,7 @@ int state_read(char *ifile_name) {
   }
 
   if(my_task == master_task) {
-    q_global  = calloc(read_size, sizeof(double));
+    q_global  = calloc(read_size, sizeof(fluid_real));
 
     ifile = fopen(ifile_name, "rb");
     assert(ifile);
@@ -241,10 +247,10 @@ int state_read(char *ifile_name) {
     idx = n*grid_3d_nn_local*2;
 
     if(my_task == master_task) {
-      fread(q_global, sizeof(double), read_size, ifile);
+      fread(q_global, sizeof(fluid_real), read_size, ifile);
     }
 
-    scatter_global_array(&q[idx], q_global, sizeof(double));
+    scatter_global_array(&q[idx], q_global, sizeof(fluid_real));
   }
 
   if(my_task == master_task) {
@@ -262,12 +268,12 @@ int state_write(char *ofile_name) {
 
   FILE *ofile;
 
-  double *q_global;
+  fluid_real *q_global;
 
   size_t write_size = 0;
 
   int idx2d, idx3d, m;
-  double complex foo;
+  fluid_complex foo;
   for(idx2d = 0; idx2d < grid_2d_nn_local; idx2d++) {
     for(m = 0; m < grid_nz; m++) {
       idx3d = idx2d + grid_2d_nn_local*m;
@@ -282,7 +288,11 @@ int state_write(char *ofile_name) {
   }
 
   state_spectral2physical();
-  MPI_Barrier(MPI_COMM_WORLD);
+  double ke, pe;
+  bouss3d_energy(&ke, &pe);
+  if(my_task == master_task) {
+    printf("KE PE TE %1.16lf %1.16lf %1.16lf\n", ke, pe, ke+pe);
+  }
 
   write_size = grid_nx*(grid_ny/2 + 1)*2;
   if(grid_nd == 3) {
@@ -290,7 +300,7 @@ int state_write(char *ofile_name) {
   }
 
   if(my_task == master_task) {
-    q_global = calloc(write_size, sizeof(double));
+    q_global = calloc(write_size, sizeof(fluid_real));
   }
 
   if(my_task == master_task) {
@@ -301,10 +311,10 @@ int state_write(char *ofile_name) {
   for(n = 0; n < nq; n++) {
     idx = n*grid_3d_nn_local*2;
 
-    gather_global_array(&q[idx], q_global, sizeof(double));
+    gather_global_array(&q[idx], q_global, sizeof(fluid_real));
 
     if(my_task == master_task) {
-      fwrite(q_global, sizeof(double), write_size, ofile);
+      fwrite(q_global, sizeof(fluid_real), write_size, ofile);
     }
   }
 
@@ -358,17 +368,24 @@ int state_read_config() {
     len = 0;
     if(file_name) {
       len = strlen(file_name)+1;
-      state_restart_file_name = calloc(len,sizeof(char));
-      strcpy(state_restart_file_name,file_name);
+      if(len > __FLUID_STRLEN_MAX) {
+        status = 1;
+      }
+      else {
+        state_restart_file_name = calloc(len,sizeof(char));
+        strncpy(state_restart_file_name,file_name,len);
+      }
     }
     type = iniparser_getint(dict, "model:type", model_type);
     iniparser_freedict(dict);
   }
+  error_check(&status, "restart file name too long\n");
+  if(status) return status;
 
   MPI_Bcast(&nq,1,MPI_INT,master_task,MPI_COMM_WORLD);
   MPI_Bcast(&state_init_type,1,MPI_INT,master_task,MPI_COMM_WORLD);
   MPI_Bcast(&type,1,MPI_INT,master_task,MPI_COMM_WORLD);
-  model_type = type;
+  model_type = (model_type_t) type;
 
   return status;
 }
@@ -381,7 +398,7 @@ int state_write_vort(char *ofile_name) {
   size_t write_size = 0;
 
 
-  double *vort_global;
+  fluid_real *vort_global;
 
   if(grid_nd < 3) return 1;
 
@@ -402,7 +419,7 @@ int state_write_vort(char *ofile_name) {
   }
 
   if(my_task == master_task) {
-    vort_global = calloc(write_size, sizeof(double));
+    vort_global = calloc(write_size, sizeof(fluid_real));
   }
 
   if(my_task == master_task) {
@@ -410,10 +427,10 @@ int state_write_vort(char *ofile_name) {
     assert(ofile);
   }
 
-  gather_global_array(state_vort, vort_global, sizeof(double));
+  gather_global_array(state_vort, vort_global, sizeof(fluid_real));
 
   if(my_task == master_task) {
-    fwrite(vort_global, sizeof(double), write_size, ofile);
+    fwrite(vort_global, sizeof(fluid_real), write_size, ofile);
   }
   
   if(my_task == master_task) {

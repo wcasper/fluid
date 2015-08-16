@@ -2,13 +2,14 @@
 #include <fftw3-mpi.h>
 #include <assert.h>
 
+#include "fluid.h"
 #include "fourier.h"
 #include "grid.h"
 
-double *rwork2d;
-double *rworkv;
-double complex *cwork2d;
-double complex *cworkv;
+fluid_real *rwork2d;
+fluid_real *rworkv;
+fluid_complex *cwork2d;
+fluid_complex *cworkv;
 
 fftw_plan fp2d,		// two-dimensional forward plan
           rp2d,		// two-dimensional reverse plan
@@ -19,14 +20,14 @@ fftw_plan fp2d,		// two-dimensional forward plan
           fpvs,		// vertical forward sine plan
           rpvs;		// vertical reverse sine plan
 
-static void physical2spectral_2d(double *in, double complex *out);
-static void spectral2physical_2d(double complex *in, double *out);
-static void physical2spectral_3d_p(double *in, double complex *out);
-static void physical2spectral_3d_c(double *in, double complex *out);
-static void physical2spectral_3d_s(double *in, double complex *out);
-static void spectral2physical_3d_p(double complex *in, double *out);
-static void spectral2physical_3d_c(double complex *in, double *out);
-static void spectral2physical_3d_s(double complex *in, double *out);
+static void physical2spectral_2d(fluid_real *in, fluid_complex *out);
+static void spectral2physical_2d(fluid_complex *in, fluid_real *out);
+static void physical2spectral_3d_p(fluid_real *in, fluid_complex *out);
+static void physical2spectral_3d_c(fluid_real *in, fluid_complex *out);
+static void physical2spectral_3d_s(fluid_real *in, fluid_complex *out);
+static void spectral2physical_3d_p(fluid_complex *in, fluid_real *out);
+static void spectral2physical_3d_c(fluid_complex *in, fluid_real *out);
+static void spectral2physical_3d_s(fluid_complex *in, fluid_real *out);
 
 int fourier_init() {
   int status = 0;
@@ -83,20 +84,20 @@ void fourier_finalize() {
   }
 }
 
-void physical2spectral_2d(double *in, double complex *out) {
+void physical2spectral_2d(fluid_real *in, fluid_complex *out) {
   fftw_mpi_execute_dft_r2c(fp2d,in,out);
 }
 
-void spectral2physical_2d(double complex *in, double *out) {
+void spectral2physical_2d(fluid_complex *in, fluid_real *out) {
   fftw_mpi_execute_dft_c2r(rp2d,in,out);
 }
 
-void physical2spectral_3d_p(double *in, double complex *out) {
+void physical2spectral_3d_p(fluid_real *in, fluid_complex *out) {
   int m, idx;
 
-  double *in1;
+  fluid_real *in1;
 
-  double complex *out1;
+  fluid_complex *out1;
 
   // do all horizontal transforms
   for(m = 0; m < grid_nz; m++) {
@@ -117,12 +118,12 @@ void physical2spectral_3d_p(double *in, double complex *out) {
   }
 }
 
-void physical2spectral_3d_c(double *in, double complex *out) {
+void physical2spectral_3d_c(fluid_real *in, fluid_complex *out) {
   int m, idx;
 
-  double *in1;
+  fluid_real *in1;
 
-  double complex *out1;
+  fluid_complex *out1;
 
   // do vertical transforms
   for(idx = 0; idx < grid_2d_nn_local*2; idx++) {
@@ -143,12 +144,12 @@ void physical2spectral_3d_c(double *in, double complex *out) {
   }
 }
 
-void physical2spectral_3d_s(double *in, double complex *out) {
+void physical2spectral_3d_s(fluid_real *in, fluid_complex *out) {
   int m, idx;
 
-  double *in1;
+  fluid_real *in1;
 
-  double complex *out1;
+  fluid_complex *out1;
 
   // do vertical transforms
   for(idx = 0; idx < grid_2d_nn_local*2; idx++) {
@@ -169,12 +170,12 @@ void physical2spectral_3d_s(double *in, double complex *out) {
   }
 }
 
-void spectral2physical_3d_p(double complex *in, double *out) {
+void spectral2physical_3d_p(fluid_complex *in, fluid_real *out) {
   int m, idx;
 
-  double complex *in1;
+  fluid_complex *in1;
 
-  double *out1;
+  fluid_real *out1;
 
   // do vertical transforms
   for(idx = 0; idx < grid_2d_nn_local; idx++) {
@@ -195,12 +196,12 @@ void spectral2physical_3d_p(double complex *in, double *out) {
   }
 }
 
-void spectral2physical_3d_c(double complex *in, double *out) {
+void spectral2physical_3d_c(fluid_complex *in, fluid_real *out) {
   int m, idx;
 
-  double complex *in1;
+  fluid_complex *in1;
 
-  double *out1;
+  fluid_real *out1;
 
   // do all horizontal transforms
   for(m = 0; m < grid_nz; m++) {
@@ -222,12 +223,12 @@ void spectral2physical_3d_c(double complex *in, double *out) {
 
 }
 
-void spectral2physical_3d_s(double complex *in, double *out) {
+void spectral2physical_3d_s(fluid_complex *in, fluid_real *out) {
   int m, idx;
 
-  double complex *in1;
+  fluid_complex *in1;
 
-  double *out1;
+  fluid_real *out1;
 
   // do all horizontal transforms
   for(m = 0; m < grid_nz; m++) {
@@ -249,16 +250,16 @@ void spectral2physical_3d_s(double complex *in, double *out) {
 
 }
 
-void physical2spectral(double *in, double complex *out,
+void physical2spectral(fluid_real *in, fluid_complex *out,
                        grid_vertical_layout_t layout) {
-  double normalization;
+  fluid_real normalization;
 
   int idx;
 
   if(grid_nd == 2) {
     physical2spectral_2d(in,out);
     // normalize
-    normalization = 1.0/(double)(grid_nx*grid_ny);
+    normalization = 1.0/(fluid_real)(grid_nx*grid_ny);
     for(idx = 0; idx < grid_2d_nn_local; idx++) {
       out[idx] *= normalization;
     }
@@ -268,17 +269,17 @@ void physical2spectral(double *in, double complex *out,
   switch(layout) {
     case GRID_VERTICAL_LAYOUT_PERIODIC:
       physical2spectral_3d_p(in,out);
-      normalization = 1.0/(double)(grid_nx*grid_ny*grid_nz);
+      normalization = 1.0/(fluid_real)(grid_nx*grid_ny*grid_nz);
       break;
 
     case GRID_VERTICAL_LAYOUT_SINE:
       physical2spectral_3d_s(in,out);
-      normalization = 1.0/(double)(grid_nx*grid_ny*grid_nz*2);
+      normalization = 1.0/(fluid_real)(grid_nx*grid_ny*grid_nz*2);
       break;
 
     case GRID_VERTICAL_LAYOUT_COSINE:
       physical2spectral_3d_c(in,out);
-      normalization = 1.0/(double)(grid_nx*grid_ny*grid_nz*2);
+      normalization = 1.0/(fluid_real)(grid_nx*grid_ny*grid_nz*2);
       break;
  
     default:
@@ -291,7 +292,7 @@ void physical2spectral(double *in, double complex *out,
   }
 }
 
-void spectral2physical(double complex *in, double *out,
+void spectral2physical(fluid_complex *in, fluid_real *out,
                        grid_vertical_layout_t layout) {
   if(grid_nd == 2) {
     spectral2physical_2d(in,out);
