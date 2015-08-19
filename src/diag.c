@@ -26,7 +26,7 @@ int diag_write() {
   return 0;
 }
 
-write_energy(double *ke_out, double *pe_out) {
+void write_energy(double *ke_out, double *pe_out) {
   int idx2d, idx3d, m;
 
   fluid_real u,v,w,b;
