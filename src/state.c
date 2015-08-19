@@ -15,7 +15,7 @@
 #include "fourier.h"
 #include "config.h"
 #include "error.h"
-#include "bouss3d.h"
+#include "diag.h"
 
 fluid_real *q;
 fluid_complex *kq;
@@ -100,6 +100,13 @@ int state_init() {
   if(status) return status;
 
   // Initialize spectral data
+  double ke, pe;
+  double fcor  = 0.0;
+  double bfreq = 0.0;
+  double umag= 0.0;
+  double ro= 0.0;
+  double fr= 0.0;
+  dictionary *dict;
   switch(state_init_type) {
     case STATE_INIT_TYPE_RESTART:
       state_read(state_restart_file_name);
@@ -158,8 +165,7 @@ int state_init() {
           */
         }
       }
-      double ke, pe;
-      bouss3d_energy(&ke, &pe);
+      write_energy(&ke, &pe);
       if(my_task == master_task) {
         printf("KE PE TE %1.16lf %1.16lf %1.16lf\n", ke, pe, ke+pe);
       }
@@ -167,16 +173,40 @@ int state_init() {
       break;
 
     case STATE_INIT_TYPE_INS3D_TEST1:
+      if(my_task == master_task) {
+        dict = iniparser_load(config_file_name);
+        fcor  = iniparser_getdouble(dict, "ins3d:fcor", 0.0);
+        bfreq = iniparser_getdouble(dict, "ins3d:bfreq", 0.0);
+        umag = iniparser_getdouble(dict, "ins3d:umag", 0.0);
+        iniparser_freedict(dict);
+      }
+      MPI_Bcast(&fcor,1,MPI_DOUBLE,master_task,MPI_COMM_WORLD);
+      MPI_Bcast(&bfreq,1,MPI_DOUBLE,master_task,MPI_COMM_WORLD);
+      MPI_Bcast(&umag,1,MPI_DOUBLE,master_task,MPI_COMM_WORLD);
+      ro = umag/(grid_lx*fcor);
+      fr = umag/(bfreq*grid_lz);
+
+      if(my_task == master_task) {
+        printf("FCOR:  %1.16lf\n", fcor);
+        printf("BFREQ: %1.16lf\n", bfreq);
+        printf("UMAG:  %1.16lf\n", umag);
+        printf("Ro:    %1.16lf\n", ro);
+        printf("Fr:    %1.16lf\n", fr);
+      }
+
       for(idx2d = 0; idx2d < grid_2d_nn_local*2; idx2d++) {
         for(m = 0; m < grid_nz; m++) {
           x = grid_2d_x[idx2d];
           y = grid_2d_y[idx2d];
           z = m*grid_dz;
           idx3d = idx2d + grid_2d_nn_local*2*m;
-          q[grid_3d_nn_local*2*0 + idx3d] = sin(4.0*M_PI*y/grid_ly)*cos(4.0*M_PI*z/grid_lz)*(grid_lz/grid_ly)*1e1;
-          q[grid_3d_nn_local*2*1 + idx3d] = sin(2.0*M_PI*x/grid_lx)*cos(2.0*M_PI*z/grid_lz)*(-grid_lz/grid_lx)*1.0e2;
-          q[grid_3d_nn_local*2*3 + idx3d] = cos(2.0*M_PI*x/grid_lx)*sin(2.0*M_PI*z/grid_lz)*1.0e-2;
-          q[grid_3d_nn_local*2*3 + idx3d]+= 0.001*cos(4.0*M_PI*y/grid_ly)*sin(4.0*M_PI*z/grid_lz);
+          q[grid_3d_nn_local*2*0 + idx3d] = sin(4.0*M_PI*y/grid_ly)*cos(4.0*M_PI*z/grid_lz)*umag*(-1e-1);
+          q[grid_3d_nn_local*2*0 + idx3d]+= sin(6.0*M_PI*y/grid_ly + .1)*cos(6.0*M_PI*z/grid_lz)*umag*(-1e-2);
+          q[grid_3d_nn_local*2*1 + idx3d] = sin(2.0*M_PI*x/grid_lx)*cos(2.0*M_PI*z/grid_lz)*umag;
+          //q[grid_3d_nn_local*2*1 + idx3d] = sin(2.0*M_PI*z/grid_lz);
+          q[grid_3d_nn_local*2*3 + idx3d] = cos(2.0*M_PI*x/grid_lx)*sin(2.0*M_PI*z/grid_lz)*umag*(fr/ro);
+          q[grid_3d_nn_local*2*3 + idx3d]+= cos(4.0*M_PI*y/grid_ly)*sin(4.0*M_PI*z/grid_lz)*umag*(fr/ro)*1e-1;
+          q[grid_3d_nn_local*2*3 + idx3d]+= cos(6.0*M_PI*y/grid_ly + .1)*sin(6.0*M_PI*z/grid_lz)*umag*(fr/ro)*1e-2;
         }
       }
       state_physical2spectral();
@@ -279,17 +309,18 @@ int state_write(char *ofile_name) {
       idx3d = idx2d + grid_2d_nn_local*m;
       for(n = 0; n < nq; n++) {
         foo = kq[idx3d + grid_3d_nn_local*n];
-        if(cabs(foo) > 1e-12) {
+        if(cabs(foo) > 1e-12 && !grid_2d_dealias_mask[idx2d]) {
           //printf("hi!! %i %i %i %i ", grid_2d_ki[idx2d], grid_2d_kj[idx2d], m, n);
           //printf("%1.16lf %1.16lf\n", creal(foo), cimag(foo));
         }
       }
     }
   }
+  MPI_Barrier(MPI_COMM_WORLD);
 
   state_spectral2physical();
   double ke, pe;
-  bouss3d_energy(&ke, &pe);
+  write_energy(&ke, &pe);
   if(my_task == master_task) {
     printf("KE PE TE %1.16lf %1.16lf %1.16lf\n", ke, pe, ke+pe);
   }
@@ -407,8 +438,9 @@ int state_write_vort(char *ofile_name) {
     for(m = 0; m < grid_nz; m++) {
       idx3d = idx2d + grid_2d_nn_local*m;
 
-        state_kvort[idx3d]  = kq[grid_3d_nn_local*1 + idx3d]*grid_2d_kx[idx2d]*I;
-        state_kvort[idx3d] -= kq[grid_3d_nn_local*0 + idx3d]*grid_2d_ky[idx2d]*I;
+      state_kvort[idx3d]  = kq[grid_3d_nn_local*1 + idx3d]*grid_2d_kx[idx2d]*I;
+      state_kvort[idx3d] -= kq[grid_3d_nn_local*0 + idx3d]*grid_2d_ky[idx2d]*I;
+       
     }
   }
   spectral2physical(state_kvort,state_vort,state_layout[0]);

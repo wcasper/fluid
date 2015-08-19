@@ -17,6 +17,7 @@
 
 fluid_real ins3d_kvisc    = 0.0;	// kinematic viscosity
 fluid_real ins3d_fcor     = 0.0;	// coriolis parameter
+fluid_real ins3d_bfreq    = 0.0;	// coriolis parameter
 fluid_real ins3d_sigma;		// boundary relax scale
 
 fluid_real *rwork1, *rwork2, *rwork3,
@@ -49,11 +50,13 @@ int ins3d_read_config() {
     // read in ins3d initialization data
     ins3d_fcor  = iniparser_getdouble(dict, "ins3d:fcor",  ins3d_fcor);
     ins3d_kvisc = iniparser_getdouble(dict, "ins3d:kvisc", ins3d_kvisc);
+    ins3d_bfreq = iniparser_getdouble(dict, "ins3d:bfreq", ins3d_kvisc);
     iniparser_freedict(dict);
   }
 
   MPI_Bcast(&ins3d_fcor,1,MPI_DOUBLE,master_task,MPI_COMM_WORLD);
   MPI_Bcast(&ins3d_kvisc,1,MPI_DOUBLE,master_task,MPI_COMM_WORLD);
+  MPI_Bcast(&ins3d_bfreq,1,MPI_DOUBLE,master_task,MPI_COMM_WORLD);
 
   return status;
 }
@@ -213,6 +216,7 @@ void ins3d_p_adjust(fluid_complex *kstate) {
   fluid_complex kp;
 
   // adjust velocity based on pressure forcing
+//  printf("begin velocity adjustment\n");
   for(idx2d = 0; idx2d < grid_2d_nn_local; idx2d++) {
     for(m = 0; m < grid_nz; m++) {
       kk = (2*m < grid_nz) ? m : m-grid_nz;
@@ -223,19 +227,33 @@ void ins3d_p_adjust(fluid_complex *kstate) {
         kz = 2.0*M_PI*kk/grid_lz;
         kp = 0.0 + 0.0*I;
         if(fabs(kx) > 1e-14 ||
-           fabs(ky) > 1e-14 || m > 0) {
+           fabs(ky) > 1e-14 ||
+           fabs(kz) > 1e-14) {
           kp = kstate[grid_3d_nn_local*0 + idx3d]*kx*I
              + kstate[grid_3d_nn_local*1 + idx3d]*ky*I
              + kstate[grid_3d_nn_local*2 + idx3d]*kz*I;
           kp/= -kx*kx - ky*ky - kz*kz;
         }
 
+/*
+        if(cabs(kp) > 1e-10) {
+          printf("x=%lf y=%lf z=%lf : ", kx, ky, kz);
+          printf("%1.16lf %1.16lf ", creal(kp), cimag(kp));
+          printf("%1.16lf %1.16lf ", creal(kp*kx*I), cimag(kp*kx*I));
+          printf("%1.16lf %1.16lf ", creal(kp*ky*I), cimag(kp*ky*I));
+          printf("%1.16lf %1.16lf", creal(kp*kz*I), cimag(kp*kz*I));
+          printf("%1.16lf %1.16lf\n", creal(kstate[grid_3d_nn_local*2 + idx3d]), cimag(kstate[grid_3d_nn_local*2 + idx3d]));
+        }
+*/
+
         kstate[grid_3d_nn_local*0 + idx3d] -= I*kx*kp;
         kstate[grid_3d_nn_local*1 + idx3d] -= I*ky*kp;
         kstate[grid_3d_nn_local*2 + idx3d] -= I*kz*kp;
+
       }
     }
   }
+//  printf("end velocity adjustment\n");
 }
 
 void ins3d_rhs(fluid_complex *krhs, fluid_complex *kstate) {
@@ -286,10 +304,10 @@ void ins3d_rhs(fluid_complex *krhs, fluid_complex *kstate) {
     kw = kstate[grid_3d_nn_local*2 + idx3d];
     kb = kstate[grid_3d_nn_local*3 + idx3d];
     if(cabs(kb) > 1e-14) {
-      krhs[grid_3d_nn_local*2 + idx3d] += kb;
+      krhs[grid_3d_nn_local*2 + idx3d] += kb*ins3d_bfreq;
     }
     if(cabs(kw) > 1e-14) {
-      krhs[grid_3d_nn_local*3 + idx3d] -= kw*5e-5;
+      krhs[grid_3d_nn_local*3 + idx3d] -= kw*ins3d_bfreq;
     }
   }
 
@@ -305,7 +323,7 @@ fluid_real ins3d_step_rk4_adaptive(fluid_real dt, fluid_real err_bnd_global) {
 
   int kk;
 
-  fluid_real ksq;
+  fluid_real ksq_2d, ksq_vd;
 
   fluid_real err_max = 0.0,
          err, err_max_global;
@@ -408,14 +426,16 @@ fluid_real ins3d_step_rk4_adaptive(fluid_real dt, fluid_real err_bnd_global) {
 
   // apply viscous damping
   for(idx2d = 0; idx2d < grid_2d_nn_local; idx2d++) {
+    ksq_2d = grid_2d_kx[idx2d]*grid_2d_kx[idx2d]
+           + grid_2d_ky[idx2d]*grid_2d_ky[idx2d];
     for(m = 0; m < grid_nz; m++) {
       idx3d = idx2d + grid_2d_nn_local*m;
+      kk = (2*m < grid_nz) ? m : m-grid_nz;
+      ksq_vd = pow(2.0*M_PI*kk,2);
 
       for(n = 0; n < 3; n++) {
-        ksq = grid_2d_kx[idx2d]*grid_2d_kx[idx2d]
-            + grid_2d_ky[idx2d]*grid_2d_ky[idx2d]
-            + pow(2.0*M_PI*m/grid_lz,2.0);
-        kq[grid_3d_nn_local*n + idx3d] *= exp(-ins3d_kvisc*dt*pow(ksq,4));
+        kq[grid_3d_nn_local*n + idx3d] *= exp(-pow(ksq_2d/(0.9*grid_2d_ksq_max),4)
+                                              -pow(ksq_vd/(0.9*grid_vd_ksq_max),4));
       }
     }
   }

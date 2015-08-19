@@ -42,7 +42,7 @@ int time_read_config() {
   if(status) return status;
   
   if(my_task == master_task) {
-    // read in grid initialization data
+    // read in time initialization data
     time_model = iniparser_getdouble(dict, "time:t",  time_model);
     time_dt = iniparser_getdouble(dict, "time:dt", 1.0);
     time_step_dt = iniparser_getdouble(dict, "time:dt0", 1e-3);
