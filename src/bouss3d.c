@@ -209,7 +209,7 @@ void bouss3d_adv(fluid_complex *kadv, fluid_complex *kstate) {
               cwork3[idx3d] = 0.0;
             }
             else {
-              kz = grid_vd_kze[m+1];
+              kz = -M_PI*(m+1)/grid_lz;
               cwork3[idx3d] =  kz*kstate[idx3d + grid_2d_nn_local + grid_3d_nn_local*n];
             }
           }
@@ -219,7 +219,7 @@ void bouss3d_adv(fluid_complex *kadv, fluid_complex *kstate) {
               cwork3[idx3d] = 0.0;
             }
             else {
-              kz = grid_vd_kzo[m-1];
+              kz = M_PI*m/grid_lz;
               cwork3[idx3d] =  kz*kstate[idx3d - grid_2d_nn_local + grid_3d_nn_local*n];
             }
           }
@@ -263,7 +263,6 @@ void bouss3d_p_adjust(fluid_complex *kstate) {
   // adjust velocity based on pressure forcing
   for(idx2d = 0; idx2d < grid_2d_nn_local; idx2d++) {
     for(m = 0; m < grid_nz; m++) {
-        if(!grid_2d_dealias_mask[idx2d] && 3*m < 2*grid_nz) {
         idx3d = idx2d + grid_2d_nn_local*m;
         kx = grid_2d_kx[idx2d];
         ky = grid_2d_ky[idx2d];
@@ -287,7 +286,6 @@ void bouss3d_p_adjust(fluid_complex *kstate) {
         if(m > 0) {
           kstate[grid_3d_nn_local*2 - grid_2d_nn_local + idx3d] -= -kz*kp;
         }
-      }
     }
   }
 }
@@ -298,7 +296,7 @@ void bouss3d_rhs(fluid_complex *krhs, fluid_complex *kstate) {
   fluid_complex ku, kv, kw, kb;
 
   // calculate the advection
-  bouss3d_adv(krhs, kstate);
+  //bouss3d_adv(krhs, kstate);
 
   /*
   for(idx3d = 0; idx3d < grid_3d_nn_local; idx3d++) {
@@ -315,37 +313,23 @@ void bouss3d_rhs(fluid_complex *krhs, fluid_complex *kstate) {
     krhs[grid_3d_nn_local*2 + idx3d] = 0.0;
     krhs[grid_3d_nn_local*3 + idx3d] = 0.0;
   }
-  */
 
   for(idx2d = 0; idx2d < grid_2d_nn_local; idx2d++) {
     for(m = 0; m < grid_nz; m++) {
       idx3d = idx2d + grid_2d_nn_local*m;
       for(n = 0; n < nq; n++) {
-        if(grid_2d_dealias_mask[idx2d] || m*3 >= grid_nz*2) {
-          krhs[grid_3d_nn_local*n + idx3d] = 0.0;
-        }
-        else {
-          if(cabs(krhs[grid_3d_nn_local*n + idx3d]) < 1e-14) {
-            krhs[grid_3d_nn_local*n + idx3d] = 0.0;
-          }
-          else {
             krhs[grid_3d_nn_local*n + idx3d] *= -1.0;
-          }
-        }
       }
     }
   }
+  */
 
   // apply coriolis force
   for(idx3d = 0; idx3d < grid_3d_nn_local; idx3d++) {
     ku = kstate[grid_3d_nn_local*0 + idx3d];
     kv = kstate[grid_3d_nn_local*1 + idx3d];
-    if(cabs(ku) > 1e-14) {
       krhs[grid_3d_nn_local*1 + idx3d] -= ku*bouss3d_fcor;
-    }
-    if(cabs(kv) > 1e-14) {
       krhs[grid_3d_nn_local*0 + idx3d] += kv*bouss3d_fcor;
-    }
   }
 
   // apply bouyancy rhs forcing
@@ -354,12 +338,8 @@ void bouss3d_rhs(fluid_complex *krhs, fluid_complex *kstate) {
   for(idx3d = 0; idx3d < grid_3d_nn_local; idx3d++) {
     kw = kstate[grid_3d_nn_local*2 + idx3d];
     kb = kstate[grid_3d_nn_local*3 + idx3d];
-    if(cabs(kb) > 1e-14) {
       krhs[grid_3d_nn_local*2 + idx3d] += kb;
-    }
-    if(cabs(kw) > 1e-14) {
       krhs[grid_3d_nn_local*3 + idx3d] -= kw*1e-6;
-    }
   }
 
   // adjust velocity based on pressure forcing
@@ -562,13 +542,15 @@ fluid_real bouss3d_step_rk4_adaptive(fluid_real dt, fluid_real err_bnd_global) {
       for(n = 0; n < 3; n++) {
         if(state_layout[n] == GRID_VERTICAL_LAYOUT_COSINE) {
           ksq_vd = grid_vd_kzo[m]*grid_vd_kzo[m];
-          kq[grid_3d_nn_local*n + idx3d] *= exp(-pow(ksq_2d/(0.9*grid_2d_ksq_max),4)
-                                                -pow(ksq_vd/(0.9*grid_vd_ksq_max),4));
+//          kq[grid_3d_nn_local*n + idx3d] *= exp(-pow(ksq_2d/(0.9*grid_2d_ksq_max),4)
+//                                                -pow(ksq_vd/(0.9*grid_vd_ksq_max),4));
+          kq[grid_3d_nn_local*n + idx3d] /= 1.0 + (ksq_2d+ksq_vd)*dt*bouss3d_kvisc;
         }
         else {
           ksq_vd = grid_vd_kze[m]*grid_vd_kze[m];
-          kq[grid_3d_nn_local*n + idx3d] *= exp(-pow(ksq_2d/(0.9*grid_2d_ksq_max),4)
-                                                -pow(ksq_vd/(0.9*grid_vd_ksq_max),4));
+//          kq[grid_3d_nn_local*n + idx3d] *= exp(-pow(ksq_2d/(0.9*grid_2d_ksq_max),4)
+//                                                -pow(ksq_vd/(0.9*grid_vd_ksq_max),4));
+          kq[grid_3d_nn_local*n + idx3d] /= 1.0 + (ksq_2d+ksq_vd)*dt*bouss3d_kvisc;
         }
       }
     }
@@ -590,45 +572,5 @@ fluid_real bouss3d_step_rk4_adaptive(fluid_real dt, fluid_real err_bnd_global) {
   }
 
   return err_max_global;
-}
-
-void bouss3d_energy(double *ke_out, double *pe_out) {
-  int idx2d, idx3d, m;
-
-  fluid_real u,v,w,b;
-  fluid_real ke,ke_tot,ke_tot_g;
-  fluid_real pe,pe_tot,pe_tot_g;
-
-  pe_tot   = 0.0;
-  ke_tot   = 0.0;
-  ke_tot_g = 0.0;
-  pe_tot_g = 0.0;
-  for(idx2d = 0; idx2d < 2*grid_2d_nn_local; idx2d++) {
-    for(m = 0; m < grid_nz; m++) {
-      idx3d = idx2d + 2*grid_2d_nn_local*m;
-
-      u = q[grid_3d_nn_local*2*0 + idx3d];
-      v = q[grid_3d_nn_local*2*1 + idx3d];
-      w = q[grid_3d_nn_local*2*2 + idx3d];
-      b = q[grid_3d_nn_local*2*3 + idx3d];
-
-      ke = 0.5*(u*u + v*v + w*w);
-      pe = 0.5*(b*b)*1e6;
-      if(!grid_2d_buffer[idx2d]) {
-        ke_tot += ke;
-        pe_tot += pe;
-      }
-    }
-  }
-
-  MPI_Reduce(&ke_tot, &ke_tot_g,  1,
-             MPI_DOUBLE, MPI_SUM, master_task, MPI_COMM_WORLD);
-  MPI_Reduce(&pe_tot, &pe_tot_g,  1,
-             MPI_DOUBLE, MPI_SUM, master_task, MPI_COMM_WORLD);
-
-  *ke_out = ke_tot_g;
-  *pe_out = pe_tot_g;
-
-  return;
 }
 

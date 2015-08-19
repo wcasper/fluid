@@ -10,7 +10,5 @@ int bouss3d_finalize();
 
 fluid_real bouss3d_step_rk4_adaptive(fluid_real dt, fluid_real max_err_bnd);
 
-void bouss3d_energy(double *ke_out, double *pe_out);
-
 #endif
 
