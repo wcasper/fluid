@@ -171,7 +171,7 @@ int grid_init_layout_2d() {
   grid_2d_wgt = calloc(grid_2d_nn_local, sizeof(fluid_real));
 
   for(idx = 0; idx < grid_2d_nn_local; idx++) {
-    //grid_2d_dealias_mask[idx] = true;
+    grid_2d_dealias_mask[idx] = true;
   }
 
   for (i = 0; i < grid_2d_nx_local; i++) {
@@ -181,8 +181,6 @@ int grid_init_layout_2d() {
       ki = grid_2d_n0_local + i;
       kj = j;
       if(2*ki > grid_nx) ki -= grid_nx;
-      ki *= -1;
-      kj *= -1;
 
       grid_2d_ki[idx] = ki;
       grid_2d_kj[idx] = kj;
