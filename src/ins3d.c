@@ -21,10 +21,10 @@ fluid_real ins3d_bfreq    = 0.0;	// coriolis parameter
 fluid_real ins3d_sigma;		// boundary relax scale
 
 fluid_real *rwork1, *rwork2, *rwork3,
-       *rwork4, *rwork5, *rwork6;
+       *rwork4, *rwork5, *rwork6, *rwork7;
 
 fluid_complex *cwork1, *cwork2, *cwork3,
-               *cwork4, *cwork5, *cwork6; 
+               *cwork4, *cwork5, *cwork6, *cwork7; 
 
 static void ins3d_adv(fluid_complex *kadv, fluid_complex *kstate);
 static void ins3d_rhs(fluid_complex *krhs, fluid_complex *kstate);
@@ -88,6 +88,7 @@ int ins3d_init() {
   rwork4 = fftw_alloc_real(grid_3d_nn_local*2);
   rwork5 = fftw_alloc_real(grid_3d_nn_local*2);
   rwork6 = fftw_alloc_real(grid_3d_nn_local*2);
+  rwork7 = fftw_alloc_real(grid_3d_nn_local*2);
 
   cwork1 = fftw_alloc_complex(grid_3d_nn_local);
   cwork2 = fftw_alloc_complex(grid_3d_nn_local);
@@ -95,6 +96,7 @@ int ins3d_init() {
   cwork4 = fftw_alloc_complex(grid_3d_nn_local);
   cwork5 = fftw_alloc_complex(grid_3d_nn_local);
   cwork6 = fftw_alloc_complex(grid_3d_nn_local);
+  cwork7 = fftw_alloc_complex(grid_3d_nn_local);
 
   for(idx = 0; idx < grid_3d_nn_local*2; idx++) {
     rwork1[idx] = 0.0;
@@ -103,6 +105,7 @@ int ins3d_init() {
     rwork4[idx] = 0.0;
     rwork5[idx] = 0.0;
     rwork6[idx] = 0.0;
+    rwork7[idx] = 0.0;
   }
 
   for(idx = 0; idx < grid_3d_nn_local; idx++) {
@@ -112,7 +115,11 @@ int ins3d_init() {
     cwork4[idx] = 0.0 + 0.0*I;
     cwork5[idx] = 0.0 + 0.0*I;
     cwork6[idx] = 0.0 + 0.0*I;
+    cwork7[idx] = 0.0 + 0.0*I;
   }
+
+  // remove divergence from input velocity field
+  ins3d_p_adjust(kq);
 
   ins3d_sigma = grid_dz*2.0;
 
@@ -126,6 +133,7 @@ int ins3d_finalize() {
   fftw_free(rwork4);
   fftw_free(rwork5);
   fftw_free(rwork6);
+  fftw_free(rwork7);
 
   fftw_free(cwork1);
   fftw_free(cwork2);
@@ -133,6 +141,7 @@ int ins3d_finalize() {
   fftw_free(cwork4);
   fftw_free(cwork5);
   fftw_free(cwork6);
+  fftw_free(cwork7);
 
   return 0;
 }
@@ -168,8 +177,8 @@ void ins3d_adv(fluid_complex *kadv, fluid_complex *kstate) {
   spectral2physical(cwork5,rwork5, GRID_VERTICAL_LAYOUT_PERIODIC);
   spectral2physical(cwork6,rwork6, GRID_VERTICAL_LAYOUT_PERIODIC);
 
-  // calculate the advection
-  for(n = 0; n < nq; n++) {
+  // calculate the advection of non-velocity components
+  for(n = 3; n < nq; n++) {
     for(idx2d = 0; idx2d < grid_2d_nn_local; idx2d++) {
       kx = grid_2d_kx[idx2d];
       ky = grid_2d_ky[idx2d];
@@ -204,6 +213,59 @@ void ins3d_adv(fluid_complex *kadv, fluid_complex *kstate) {
 
     physical2spectral(rwork1, &kadv[grid_3d_nn_local*n], GRID_VERTICAL_LAYOUT_PERIODIC);
   }
+
+  // calculate the vorticity
+  for(idx2d = 0; idx2d < grid_2d_nn_local; idx2d++) {
+    kx = grid_2d_kx[idx2d];
+    ky = grid_2d_ky[idx2d];
+    for(m = 0; m < grid_nz; m++) {
+      idx3d = idx2d + grid_2d_nn_local*m;
+      kk = (2*m < grid_nz) ? m : m-grid_nz;
+      kz = 2.0*M_PI*kk/grid_lz;
+
+      // dealias
+      if(grid_2d_dealias_mask[idx2d] || 3*abs(kk) >= grid_nz) {
+        cwork1[idx3d] = 0.0 + 0.0*I;
+        cwork2[idx3d] = 0.0 + 0.0*I;
+        cwork3[idx3d] = 0.0 + 0.0*I;
+      }
+      else {
+        cwork1[idx3d] = kstate[idx3d + grid_3d_nn_local*2]*I*ky
+                      - kstate[idx3d + grid_3d_nn_local*1]*I*kz;
+        cwork2[idx3d] = kstate[idx3d + grid_3d_nn_local*0]*I*kz
+                      - kstate[idx3d + grid_3d_nn_local*2]*I*kx;
+        cwork3[idx3d] = kstate[idx3d + grid_3d_nn_local*1]*I*kx
+                      - kstate[idx3d + grid_3d_nn_local*0]*I*ky;
+      }
+    }
+  }
+  spectral2physical(cwork1, rwork1, GRID_VERTICAL_LAYOUT_PERIODIC);
+  spectral2physical(cwork2, rwork2, GRID_VERTICAL_LAYOUT_PERIODIC);
+  spectral2physical(cwork3, rwork3, GRID_VERTICAL_LAYOUT_PERIODIC);
+
+  // calculate vorticity x velocity
+  // this is equal to the velocity advection
+  // up to a curl-free factor which is removed
+  // by the pressure correction
+  for(idx3d = 0; idx3d < grid_3d_nn_local*2; idx3d++) {
+    rwork7[idx3d] = rwork2[idx3d]*rwork6[idx3d]
+                  - rwork3[idx3d]*rwork5[idx3d];
+  }
+  physical2spectral(rwork7, &kadv[grid_3d_nn_local*0],
+                    GRID_VERTICAL_LAYOUT_PERIODIC);
+  for(idx3d = 0; idx3d < grid_3d_nn_local*2; idx3d++) {
+    rwork7[idx3d] = rwork3[idx3d]*rwork4[idx3d]
+                  - rwork1[idx3d]*rwork6[idx3d];
+  }
+  physical2spectral(rwork7, &kadv[grid_3d_nn_local*1],
+                    GRID_VERTICAL_LAYOUT_PERIODIC);
+  for(idx3d = 0; idx3d < grid_3d_nn_local*2; idx3d++) {
+    rwork7[idx3d] = rwork1[idx3d]*rwork5[idx3d]
+                  - rwork2[idx3d]*rwork4[idx3d];
+  }
+  physical2spectral(rwork7, &kadv[grid_3d_nn_local*2],
+                    GRID_VERTICAL_LAYOUT_PERIODIC);
+  
 }
 
 void ins3d_p_adjust(fluid_complex *kstate) {
@@ -216,7 +278,6 @@ void ins3d_p_adjust(fluid_complex *kstate) {
   fluid_complex kp;
 
   // adjust velocity based on pressure forcing
-//  printf("begin velocity adjustment\n");
   for(idx2d = 0; idx2d < grid_2d_nn_local; idx2d++) {
     for(m = 0; m < grid_nz; m++) {
       kk = (2*m < grid_nz) ? m : m-grid_nz;
@@ -235,17 +296,6 @@ void ins3d_p_adjust(fluid_complex *kstate) {
           kp/= -kx*kx - ky*ky - kz*kz;
         }
 
-/*
-        if(cabs(kp) > 1e-10) {
-          printf("x=%lf y=%lf z=%lf : ", kx, ky, kz);
-          printf("%1.16lf %1.16lf ", creal(kp), cimag(kp));
-          printf("%1.16lf %1.16lf ", creal(kp*kx*I), cimag(kp*kx*I));
-          printf("%1.16lf %1.16lf ", creal(kp*ky*I), cimag(kp*ky*I));
-          printf("%1.16lf %1.16lf", creal(kp*kz*I), cimag(kp*kz*I));
-          printf("%1.16lf %1.16lf\n", creal(kstate[grid_3d_nn_local*2 + idx3d]), cimag(kstate[grid_3d_nn_local*2 + idx3d]));
-        }
-*/
-
         kstate[grid_3d_nn_local*0 + idx3d] -= I*kx*kp;
         kstate[grid_3d_nn_local*1 + idx3d] -= I*ky*kp;
         kstate[grid_3d_nn_local*2 + idx3d] -= I*kz*kp;
@@ -253,7 +303,6 @@ void ins3d_p_adjust(fluid_complex *kstate) {
       }
     }
   }
-//  printf("end velocity adjustment\n");
 }
 
 void ins3d_rhs(fluid_complex *krhs, fluid_complex *kstate) {
